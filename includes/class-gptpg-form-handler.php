@@ -153,6 +153,9 @@ class GPTPG_Form_Handler {
 		$post_url = esc_url_raw( wp_unslash( $_POST['post_url'] ) );
 		$post_title = ''; // Empty title as per new requirements
 		$post_content = wp_kses_post( wp_unslash( $_POST['post_content'] ) );
+		
+		// Clean up markdown content by removing author/footer information
+		$post_content = self::clean_markdown_content( $post_content );
 
 		// Generate a new session ID
 		$session_id = self::generate_session_id();
@@ -456,6 +459,42 @@ class GPTPG_Form_Handler {
 			'title'   => $title,
 			'content' => $content,
 		);
+	}
+
+	/**
+	 * Clean markdown content by removing author/footer information.
+	 *
+	 * @param string $content The markdown content to clean.
+	 * @return string The cleaned markdown content.
+	 */
+	public static function clean_markdown_content( $content ) {
+		// Pattern to match author information sections
+		$patterns = array(
+			// Match content starting with author gravatar/image
+			'/!\[.*?Team\]\(.*?\)\s*.*?Author:.*?(---|-$|$)/s',
+			// Match content starting with "Author:" 
+			'/Author:.*?(---|-$|$)/s',
+			// Match content with "Was this article helpful?" 
+			'/Was this article helpful\?[\s\S]*?($)/s',
+			// Match "Source:" line at the end
+			'/Source: \[.*?\]\(.*?\)\s*$/s',
+			// Match "Paid Memberships Pro is recommended by our customers" section
+			'/\*\*Paid Memberships Pro is recommended[\s\S]*?($)/s',
+			// Match "Free Course:" section
+			'/Free Course:.*?\)\s*$/s',
+			// Match any horizontal rule with only whitespace after it (likely end of content)
+			'/---\s*$/s'
+		);
+
+		// Apply all patterns
+		foreach ( $patterns as $pattern ) {
+			$content = preg_replace( $pattern, '', $content );
+		}
+
+		// Trim any trailing whitespace
+		$content = rtrim( $content );
+
+		 return $content;
 	}
 }
 

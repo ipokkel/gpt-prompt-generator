@@ -239,16 +239,16 @@
             
             // Snippets are now optional since we already have markdown content
             if (snippets.length === 0) {
-                // Just show the prompt generation section without any snippets
-                $('#gptpg-prompt-section').show();
+                // No snippets, just proceed to step 4
+                this.navigateToStep(4);
                 return;
             }
             
             // Show loading indicator
-            this.showLoading($('#gptpg-step-2'));
+            this.showLoading($('#gptpg-step-3'));
             
             // Clear previous errors
-            this.clearError($('#gptpg-step-2'));
+            this.clearError($('#gptpg-step-3'));
             
             // AJAX request to process snippets
             $.ajax({
@@ -261,7 +261,7 @@
                     snippets: snippets
                 },
                 success: function(response) {
-                    GPTPG_Form.hideLoading($('#gptpg-step-2'));
+                    GPTPG_Form.hideLoading($('#gptpg-step-3'));
                     
                     if (response.success) {
                         // Store snippets
@@ -270,20 +270,20 @@
                         // Show errors if any
                         if (response.data.errors && response.data.errors.length > 0) {
                             const errorMessages = response.data.errors.join('<br>');
-                            GPTPG_Form.showWarning($('#gptpg-step-2'), errorMessages);
+                            GPTPG_Form.showWarning($('#gptpg-step-3'), errorMessages);
                         } else {
-                            GPTPG_Form.clearWarning($('#gptpg-step-2'));
+                            GPTPG_Form.clearWarning($('#gptpg-step-3'));
                         }
                         
-                        // Navigate to step 3
-                        GPTPG_Form.navigateToStep(3);
+                        // Navigate to step 4
+                        GPTPG_Form.navigateToStep(4);
                     } else {
-                        GPTPG_Form.showError($('#gptpg-step-2'), response.data.message);
+                        GPTPG_Form.showError($('#gptpg-step-3'), response.data.message);
                     }
                 },
                 error: function() {
-                    GPTPG_Form.hideLoading($('#gptpg-step-2'));
-                    GPTPG_Form.showError($('#gptpg-step-2'), 'Failed to connect to the server. Please try again.');
+                    GPTPG_Form.hideLoading($('#gptpg-step-3'));
+                    GPTPG_Form.showError($('#gptpg-step-3'), 'Failed to connect to the server. Please try again.');
                 }
             });
         },
@@ -291,10 +291,10 @@
         // Generate prompt
         generatePrompt: function() {
             // Show loading indicator
-            this.showLoading($('#gptpg-prompt-section'));
+            this.showLoading($('#gptpg-step-4'));
             
             // Clear previous errors
-            this.clearError($('#gptpg-step-3'));
+            this.clearError($('#gptpg-step-4'));
             
             // AJAX request to generate prompt
             $.ajax({
@@ -306,24 +306,28 @@
                     session_id: this.sessionId
                 },
                 success: function(response) {
-                    GPTPG_Form.hideLoading($('#gptpg-prompt-section'));
+                    GPTPG_Form.hideLoading($('#gptpg-step-4'));
                     
                     if (response.success) {
-                        // Store prompt
+                        // Store the prompt
                         GPTPG_Form.prompt = response.data.prompt;
                         
-                        // Display prompt
-                        $('#gptpg-generated-prompt').val(GPTPG_Form.prompt);
-                        
-                        // Show the prompt container
+                        // Display the prompt
+                        $('#gptpg-generated-prompt').val(response.data.prompt);
                         $('#gptpg-prompt-container').show();
+                        
+                        // Setup copy button
+                        $('#gptpg-copy-prompt').on('click', GPTPG_Form.copyToClipboard);
+                        
+                        // Setup new button
+                        $('#gptpg-start-new').on('click', GPTPG_Form.reset);
                     } else {
-                        GPTPG_Form.showError($('#gptpg-step-3'), response.data.message);
+                        GPTPG_Form.showError($('#gptpg-step-4'), response.data.message);
                     }
                 },
                 error: function() {
-                    GPTPG_Form.hideLoading($('#gptpg-prompt-section'));
-                    GPTPG_Form.showError($('#gptpg-step-3'), gptpg_vars.error_ajax_failed);
+                    GPTPG_Form.hideLoading($('#gptpg-step-4'));
+                    GPTPG_Form.showError($('#gptpg-step-4'), 'Failed to connect to the server. Please try again.');
                 }
             });
         },

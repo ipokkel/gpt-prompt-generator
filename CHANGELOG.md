@@ -6,7 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2025-07-14
+## [0.0.2] - 2025-07-14
+### Added
+- Implemented markdown content cleanup to strip out author information, footers, and irrelevant content
+- Created 4-step form workflow separating code snippets (Step 3) from prompt generation (Step 4)
+
+### Changed
+- Updated step navigation in JavaScript to support 4-step workflow
+- Improved CSS for step indicators to better accommodate 4 steps
+
+## [0.0.1] - 2025-07-14
 ### Fixed
 - Browser extension suggestions now always visible in Step 2 by removing conditional browser detection logic
 - Fixed PHP syntax errors in multi-step form template

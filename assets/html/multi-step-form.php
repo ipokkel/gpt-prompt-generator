@@ -20,10 +20,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 		</div>
 		<div id="gptpg-step-indicator-2" class="gptpg-step-indicator">
 			2
-			<span class="gptpg-step-label"><?php esc_html_e( 'Code Snippets', 'gpt-prompt-generator' ); ?></span>
+			<span class="gptpg-step-label"><?php esc_html_e( 'Paste Markdown', 'gpt-prompt-generator' ); ?></span>
 		</div>
 		<div id="gptpg-step-indicator-3" class="gptpg-step-indicator">
 			3
+			<span class="gptpg-step-label"><?php esc_html_e( 'Code Snippets', 'gpt-prompt-generator' ); ?></span>
+		</div>
+		<div id="gptpg-step-indicator-4" class="gptpg-step-indicator">
+			4
 			<span class="gptpg-step-label"><?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?></span>
 		</div>
 	</div>
@@ -109,9 +113,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 		</form>
 	</div>
 	
-	<!-- Step 3: Code Snippets & Generate Prompt -->
+	<!-- Step 3: Code Snippets Only -->
 	<div id="gptpg-step-3" class="gptpg-step">
-		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 3: Add Code Snippets & Generate Prompt', 'gpt-prompt-generator' ); ?></h2>
+		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 3: Add Code Snippets', 'gpt-prompt-generator' ); ?></h2>
 		
 		<p><?php esc_html_e( 'Add GitHub/Gist links for code snippets to include in the prompt. You can add, edit, or remove links as needed.', 'gpt-prompt-generator' ); ?></p>
 		
@@ -137,17 +141,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 				</button>
 			</div>
 		</form>
+	</div>
+	
+	<!-- Step 4: Generate Prompt -->
+	<div id="gptpg-step-4" class="gptpg-step">
+		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 4: Generate Prompt', 'gpt-prompt-generator' ); ?></h2>
 		
-		<div id="gptpg-prompt-section">
-			<h3><?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?></h3>
-			<p><?php esc_html_e( 'Click the button below to generate a prompt using the post content and code snippets.', 'gpt-prompt-generator' ); ?></p>
-			
-			<div class="gptpg-form-buttons">
-				<button type="button" id="gptpg-generate-prompt" class="button button-primary">
-					<span class="gptpg-loading"></span>
-					<?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?>
-				</button>
-			</div>
+		<p><?php esc_html_e( 'Click the button below to generate a prompt using the post content and code snippets.', 'gpt-prompt-generator' ); ?></p>
+		
+		<div class="gptpg-form-buttons">
+			<button type="button" class="button gptpg-form-nav-button prev" data-step="3">
+				<?php esc_html_e( '← Back', 'gpt-prompt-generator' ); ?>
+			</button>
+			<button type="button" id="gptpg-generate-prompt" class="button button-primary">
+				<span class="gptpg-loading"></span>
+				<?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?>
+			</button>
 		</div>
 		
 		<div id="gptpg-prompt-container" class="gptpg-prompt-container">
@@ -163,5 +172,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 				</button>
 			</div>
 		</div>
+	</div>
 	</div>
 </div>
