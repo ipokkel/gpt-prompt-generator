@@ -95,6 +95,7 @@ class GPTPG_Plugin {
 
 		// Register AJAX handlers
 		add_action( 'wp_ajax_gptpg_fetch_post', array( 'GPTPG_Form_Handler', 'ajax_fetch_post' ) );
+		add_action( 'wp_ajax_gptpg_store_markdown', array( 'GPTPG_Form_Handler', 'ajax_store_markdown' ) );
 		add_action( 'wp_ajax_gptpg_process_snippets', array( 'GPTPG_Form_Handler', 'ajax_process_snippets' ) );
 		add_action( 'wp_ajax_gptpg_generate_prompt', array( 'GPTPG_Form_Handler', 'ajax_generate_prompt' ) );
 
@@ -170,22 +171,22 @@ class GPTPG_Plugin {
 			true
 		);
 
-		// Localize script
-		wp_localize_script(
-			'gptpg-scripts',
-			'gptpg_vars',
-			array(
-				'ajax_url' => admin_url( 'admin-ajax.php' ),
-				'nonce'    => wp_create_nonce( 'gptpg-nonce' ),
-				'i18n'     => array(
-					'error_fetch'      => esc_html__( 'Error fetching post. Please check the URL.', 'gpt-prompt-generator' ),
-					'error_snippets'   => esc_html__( 'Error processing code snippets.', 'gpt-prompt-generator' ),
-					'error_prompt'     => esc_html__( 'Error generating prompt.', 'gpt-prompt-generator' ),
-					'copied'           => esc_html__( 'Copied to clipboard!', 'gpt-prompt-generator' ),
-					'copy_failed'      => esc_html__( 'Copy failed. Please select and copy manually.', 'gpt-prompt-generator' ),
-				),
-			)
+		// Localize scripts
+		$script_vars = array(
+			'ajax_url' => admin_url( 'admin-ajax.php' ),
+			'nonce'    => wp_create_nonce( 'gptpg-nonce' ),
+			'i18n'     => array(
+				'error_fetch'      => esc_html__( 'Error fetching post. Please check the URL.', 'gpt-prompt-generator' ),
+				'error_snippets'   => esc_html__( 'Error processing code snippets.', 'gpt-prompt-generator' ),
+				'error_prompt'     => esc_html__( 'Error generating prompt.', 'gpt-prompt-generator' ),
+				'copied'           => esc_html__( 'Copied to clipboard!', 'gpt-prompt-generator' ),
+				'copy_failed'      => esc_html__( 'Copy failed. Please select and copy manually.', 'gpt-prompt-generator' ),
+			),
 		);
+
+		// Localize both scripts with the same variables
+		wp_localize_script('gptpg-scripts', 'gptpg_vars', $script_vars);
+		wp_localize_script('gptpg-form-scripts', 'gptpg_vars', $script_vars);
 	}
 
 	/**

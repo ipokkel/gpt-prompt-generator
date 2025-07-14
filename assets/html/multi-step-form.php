@@ -46,25 +46,74 @@ if ( ! defined( 'ABSPATH' ) ) {
 				<div></div> <!-- Empty div for flex spacing -->
 				<button type="submit" class="button button-primary">
 					<span class="gptpg-loading"></span>
-					<?php esc_html_e( 'Fetch Post Content', 'gpt-prompt-generator' ); ?>
+					<?php esc_html_e( 'Continue to Next Step', 'gpt-prompt-generator' ); ?>
 				</button>
 			</div>
 		</form>
 	</div>
 	
-	<!-- Step 2: Code Snippets -->
+	<!-- Step 2: Paste Markdown Content -->
 	<div id="gptpg-step-2" class="gptpg-step">
-		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 2: Verify Code Snippets', 'gpt-prompt-generator' ); ?></h2>
+		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 2: Paste Post Content in Markdown', 'gpt-prompt-generator' ); ?></h2>
 		
-		<p id="gptpg-post-title-container">
-			<?php esc_html_e( 'Post Title:', 'gpt-prompt-generator' ); ?> <strong id="gptpg-post-title"></strong>
+		<p id="gptpg-post-url-display">
+			<?php esc_html_e( 'Post URL:', 'gpt-prompt-generator' ); ?> <strong id="gptpg-display-url"></strong>
 		</p>
+
+		<p><?php esc_html_e( 'Please paste the content of the post in Markdown format.', 'gpt-prompt-generator' ); ?></p>
 		
-		<p><?php esc_html_e( 'The following GitHub/Gist links were found in the post. You can add, edit, or remove links as needed.', 'gpt-prompt-generator' ); ?></p>
+		<details id="gptpg-browser-extensions" class="gptpg-notification">
+			<summary><strong><?php esc_html_e( 'Need help converting to Markdown?', 'gpt-prompt-generator' ); ?></strong></summary>
+			<p><?php esc_html_e( 'Use one of these browser extensions to convert the page to Markdown:', 'gpt-prompt-generator' ); ?></p>
+			
+			<h4><?php esc_html_e( 'Chrome Extensions', 'gpt-prompt-generator' ); ?></h4>
+			<ul>
+				<li><a href="https://chromewebstore.google.com/detail/webpage-to-markdown/ajeinonckioeekcfanjndliandidilid" target="_blank"><?php esc_html_e( 'Webpage to Markdown', 'gpt-prompt-generator' ); ?></a></li>
+				<li><a href="https://chromewebstore.google.com/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi" target="_blank"><?php esc_html_e( 'MarkDownload - Markdown Web Clipper', 'gpt-prompt-generator' ); ?></a></li>
+			</ul>
+			
+			<h4><?php esc_html_e( 'Firefox Extensions', 'gpt-prompt-generator' ); ?></h4>
+			<ul>
+				<li><a href="https://addons.mozilla.org/en-US/firefox/addon/markdownload/" target="_blank"><?php esc_html_e( 'MarkDownload - Markdown Web Clipper', 'gpt-prompt-generator' ); ?></a></li>
+				<li><a href="https://addons.mozilla.org/en-US/firefox/addon/llmfeeder/" target="_blank"><?php esc_html_e( 'LLMFeeder - Webpage to Markdown', 'gpt-prompt-generator' ); ?></a></li>
+			</ul>
+			
+			<h4><?php esc_html_e( 'Edge Extensions', 'gpt-prompt-generator' ); ?></h4>
+			<ul>
+				<li><a href="https://microsoftedge.microsoft.com/addons/detail/cbbdkefgbfifiljnnklfhcnlmpglpd" target="_blank"><?php esc_html_e( 'Copy as Markdown', 'gpt-prompt-generator' ); ?></a></li>
+			</ul>
+			
+			<h4><?php esc_html_e( 'Safari Extensions', 'gpt-prompt-generator' ); ?></h4>
+			<p><?php esc_html_e( 'For Safari, consider Obsidian Web Clipper or ToMarkdown extensions (available on GitHub).', 'gpt-prompt-generator' ); ?></p>
+			
+			<p><a href="<?php echo esc_url( plugins_url( '/briefs/browser-extension-list.md', dirname( dirname( __FILE__ ) ) ) ); ?>" target="_blank"><?php esc_html_e( 'View complete list of extensions', 'gpt-prompt-generator' ); ?></a></p>
+		</details>
 		
-		<div id="gptpg-no-snippets-found" class="gptpg-notification">
-			<?php esc_html_e( 'No GitHub/Gist links were found in the post. You can add them manually below.', 'gpt-prompt-generator' ); ?>
-		</div>
+		<form id="gptpg-markdown-form">
+			<div class="gptpg-form-row">
+				<label for="gptpg-markdown-content" class="gptpg-label"><?php esc_html_e( 'Markdown Content:', 'gpt-prompt-generator' ); ?></label>
+				<textarea id="gptpg-markdown-content" class="gptpg-textarea" rows="15" placeholder="<?php esc_attr_e( 'Paste the post content in Markdown format here', 'gpt-prompt-generator' ); ?>" required></textarea>
+			</div>
+			
+			<div class="gptpg-error-message"></div>
+			
+			<div class="gptpg-form-buttons">
+				<button type="button" class="button gptpg-form-nav-button prev" data-step="1">
+					<?php esc_html_e( '← Back', 'gpt-prompt-generator' ); ?>
+				</button>
+				<button type="submit" class="button button-primary">
+					<span class="gptpg-loading"></span>
+					<?php esc_html_e( 'Process Content & Continue', 'gpt-prompt-generator' ); ?>
+				</button>
+			</div>
+		</form>
+	</div>
+	
+	<!-- Step 3: Code Snippets & Generate Prompt -->
+	<div id="gptpg-step-3" class="gptpg-step">
+		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 3: Add Code Snippets & Generate Prompt', 'gpt-prompt-generator' ); ?></h2>
+		
+		<p><?php esc_html_e( 'Add GitHub/Gist links for code snippets to include in the prompt. You can add, edit, or remove links as needed.', 'gpt-prompt-generator' ); ?></p>
 		
 		<form id="gptpg-snippets-form">
 			<div id="gptpg-snippets-container">
@@ -78,34 +127,27 @@ if ( ! defined( 'ABSPATH' ) ) {
 			<div class="gptpg-error-message"></div>
 			<div class="gptpg-warning-message"></div>
 			
-			<div class="gptpg-form-buttons">
-				<button type="button" class="button gptpg-form-nav-button prev" data-step="1">
+			<div class="gptpg-form-buttons snippet-buttons">
+				<button type="button" class="button gptpg-form-nav-button prev" data-step="2">
 					<?php esc_html_e( '← Back', 'gpt-prompt-generator' ); ?>
 				</button>
-				<button type="submit" class="button button-primary">
+				<button type="submit" id="gptpg-process-snippets" class="button button-primary">
 					<span class="gptpg-loading"></span>
 					<?php esc_html_e( 'Process Snippets', 'gpt-prompt-generator' ); ?>
 				</button>
 			</div>
 		</form>
-	</div>
-	
-	<!-- Step 3: Generate Prompt -->
-	<div id="gptpg-step-3" class="gptpg-step">
-		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 3: Generate Prompt', 'gpt-prompt-generator' ); ?></h2>
 		
-		<p><?php esc_html_e( 'Click the button below to generate a prompt using the post content and code snippets.', 'gpt-prompt-generator' ); ?></p>
-		
-		<div class="gptpg-error-message"></div>
-		
-		<div class="gptpg-form-buttons">
-			<button type="button" class="button gptpg-form-nav-button prev" data-step="2">
-				<?php esc_html_e( '← Back', 'gpt-prompt-generator' ); ?>
-			</button>
-			<button type="button" id="gptpg-generate-prompt" class="button button-primary">
-				<span class="gptpg-loading"></span>
-				<?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?>
-			</button>
+		<div id="gptpg-prompt-section">
+			<h3><?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?></h3>
+			<p><?php esc_html_e( 'Click the button below to generate a prompt using the post content and code snippets.', 'gpt-prompt-generator' ); ?></p>
+			
+			<div class="gptpg-form-buttons">
+				<button type="button" id="gptpg-generate-prompt" class="button button-primary">
+					<span class="gptpg-loading"></span>
+					<?php esc_html_e( 'Generate Prompt', 'gpt-prompt-generator' ); ?>
+				</button>
+			</div>
 		</div>
 		
 		<div id="gptpg-prompt-container" class="gptpg-prompt-container">

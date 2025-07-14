@@ -11,7 +11,9 @@
     let GPTPG_Form = {
         currentStep: 1,
         sessionId: '',
+        postUrl: '',
         postTitle: '',
+        postContent: '',
         snippets: [],
         prompt: '',
         
@@ -27,7 +29,13 @@
             // URL submission form
             $('#gptpg-url-form').on('submit', function(e) {
                 e.preventDefault();
-                GPTPG_Form.fetchPostContent();
+                GPTPG_Form.fetchPostUrl();
+            });
+            
+            // Markdown content form
+            $('#gptpg-markdown-form').on('submit', function(e) {
+                e.preventDefault();
+                GPTPG_Form.processMarkdownContent();
             });
             
             // Snippets form
@@ -86,54 +94,88 @@
             $('#gptpg-step-indicator-' + step).addClass('active');
         },
         
-        // Fetch post content from URL
-        fetchPostContent: function() {
-            const url = $('#gptpg-post-url').val();
+        // Store post URL and move to next step
+        fetchPostUrl: function() {
+            const urlForm = $('#gptpg-url-form');
+            const urlInput = $('#gptpg-post-url');
+            const url = urlInput.val().trim();
             
-            if (!url) {
-                this.showError($('#gptpg-step-1'), 'Please enter a valid URL.');
+            // Clear previous errors
+            GPTPG_Form.clearError(urlForm);
+            
+            // Basic URL validation
+            if (!url || !url.match(/^https?:\/\/.+/)) {
+                GPTPG_Form.showError(urlForm, gptpg_vars.error_invalid_url);
+                return;
+            }
+            
+            // Store URL
+            GPTPG_Form.postUrl = url;
+            
+            // Display URL in next step
+            $('#gptpg-display-url').text(url);
+            
+            // Navigate to step 2
+            GPTPG_Form.navigateToStep(2);
+        },
+        
+        // Process markdown content
+        processMarkdownContent: function() {
+            const markdownForm = $('#gptpg-markdown-form');
+            const contentInput = $('#gptpg-markdown-content');
+            
+            const content = contentInput.val().trim();
+            
+            // Clear previous errors
+            GPTPG_Form.clearError(markdownForm);
+            
+            // Validate inputs
+            if (!content) {
+                GPTPG_Form.showError(markdownForm, 'Please paste the markdown content of the post.');
                 return;
             }
             
             // Show loading indicator
-            this.showLoading($('#gptpg-step-1'));
+            GPTPG_Form.showLoading(markdownForm);
             
-            // Clear previous errors
-            this.clearError($('#gptpg-step-1'));
+            // Store values
+            GPTPG_Form.postTitle = ''; // Empty title
+            GPTPG_Form.postContent = content;
             
-            // AJAX request to fetch post content
+            // Send AJAX request to store content in session
             $.ajax({
                 url: gptpg_vars.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'gptpg_fetch_post',
+                    action: 'gptpg_store_markdown',
                     nonce: gptpg_vars.nonce,
-                    post_url: url
+                    post_url: GPTPG_Form.postUrl,
+                    post_content: content
                 },
                 success: function(response) {
-                    GPTPG_Form.hideLoading($('#gptpg-step-1'));
+                    GPTPG_Form.hideLoading(markdownForm);
                     
                     if (response.success) {
-                        // Store session data
+                        // Store session ID for future requests
                         GPTPG_Form.sessionId = response.data.session_id;
-                        GPTPG_Form.postTitle = response.data.post_title;
-                        GPTPG_Form.snippets = [];
                         
-                        // Display post title
-                        $('#gptpg-post-title').text(response.data.post_title);
+                        // Extract GitHub links if any
+                        if (response.data.github_links && response.data.github_links.length > 0) {
+                            GPTPG_Form.populateSnippets(response.data.github_links);
+                        } else {
+                            // Add empty snippet field if no links found
+                            GPTPG_Form.addSnippetField();
+                        }
                         
-                        // Populate snippets
-                        GPTPG_Form.populateSnippets(response.data.github_links);
-                        
-                        // Navigate to step 2
-                        GPTPG_Form.navigateToStep(2);
+                        // Navigate to step 3
+                        GPTPG_Form.navigateToStep(3);
                     } else {
-                        GPTPG_Form.showError($('#gptpg-step-1'), response.data.message);
+                        GPTPG_Form.showError(markdownForm, response.data.message || 'Failed to process markdown content.');
                     }
                 },
                 error: function() {
-                    GPTPG_Form.hideLoading($('#gptpg-step-1'));
-                    GPTPG_Form.showError($('#gptpg-step-1'), 'Failed to connect to the server. Please try again.');
+                    GPTPG_Form.hideLoading(markdownForm);
+                    GPTPG_Form.showError(markdownForm, gptpg_vars.error_ajax_failed);
                 }
             });
         },
@@ -195,8 +237,10 @@
                 }
             });
             
+            // Snippets are now optional since we already have markdown content
             if (snippets.length === 0) {
-                this.showError($('#gptpg-step-2'), 'Please add at least one GitHub/Gist URL.');
+                // Just show the prompt generation section without any snippets
+                $('#gptpg-prompt-section').show();
                 return;
             }
             
@@ -247,7 +291,7 @@
         // Generate prompt
         generatePrompt: function() {
             // Show loading indicator
-            this.showLoading($('#gptpg-step-3'));
+            this.showLoading($('#gptpg-prompt-section'));
             
             // Clear previous errors
             this.clearError($('#gptpg-step-3'));
@@ -262,7 +306,7 @@
                     session_id: this.sessionId
                 },
                 success: function(response) {
-                    GPTPG_Form.hideLoading($('#gptpg-step-3'));
+                    GPTPG_Form.hideLoading($('#gptpg-prompt-section'));
                     
                     if (response.success) {
                         // Store prompt
@@ -278,8 +322,8 @@
                     }
                 },
                 error: function() {
-                    GPTPG_Form.hideLoading($('#gptpg-step-3'));
-                    GPTPG_Form.showError($('#gptpg-step-3'), 'Failed to connect to the server. Please try again.');
+                    GPTPG_Form.hideLoading($('#gptpg-prompt-section'));
+                    GPTPG_Form.showError($('#gptpg-step-3'), gptpg_vars.error_ajax_failed);
                 }
             });
         },

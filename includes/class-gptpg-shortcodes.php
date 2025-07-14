@@ -59,12 +59,9 @@ class GPTPG_Shortcodes {
 		// Enqueue required assets
 		wp_enqueue_style( 'gptpg-form-styles' );
 		wp_enqueue_script( 'gptpg-form-scripts' );
-
-		// Localize script with AJAX variables
-		wp_localize_script( 'gptpg-form-scripts', 'gptpg_vars', array(
-			'ajax_url' => admin_url( 'admin-ajax.php' ),
-			'nonce'    => wp_create_nonce( 'gptpg-nonce' ),
-		));
+		
+		// Note: Script variables are now localized in the main plugin file
+		// This prevents duplication and ensures consistent variable availability
 
 		// Start output buffering
 		ob_start();

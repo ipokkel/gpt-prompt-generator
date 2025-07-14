@@ -1,17 +1,18 @@
 # GPT Prompt Generator
 
-Generate a customized ChatGPT prompt template based on Tooltip Recipe Posts, including fetching and processing external post content, extracting GitHub code snippets, and producing a ready-to-use prompt.
+Generate a customized ChatGPT prompt template based on Tooltip Recipe Posts, including processing user-provided markdown content, extracting GitHub code snippets, and producing a ready-to-use prompt.
 
 ## Description
 
 GPT Prompt Generator is an internal WordPress plugin that streamlines the process of creating ChatGPT prompts for rewriting Tooltip Recipe Posts. It features a multi-step form interface that allows users to:
 
 1. Submit a Tooltip Recipe Post URL
-2. Review, add, edit, or remove GitHub code snippet links from the post
-3. Generate a formatted prompt with both the post content and code snippets
-4. Copy the generated prompt to clipboard for use with ChatGPT
+2. Manually paste the post content in Markdown format (with browser extension suggestions for converting HTML to Markdown)
+3. Review, add, edit, or remove GitHub code snippet links (optional)
+4. Generate a formatted prompt with both the post content and code snippets
+5. Copy the generated prompt to clipboard for use with ChatGPT
 
-The plugin uses customizable prompt templates and handles cross-domain post fetching, HTML to Markdown conversion, and GitHub API integration for code retrieval.
+The plugin uses customizable prompt templates and handles GitHub API integration for code retrieval, while allowing users to manually supply markdown content for posts that may be behind paywalls or require authentication.
 
 ## Installation
 
@@ -38,11 +39,13 @@ The plugin uses customizable prompt templates and handles cross-domain post fetc
 ## Usage
 
 1. Navigate to the page with the form (either via the shortcode or the selected page)
-2. Enter a Tooltip Recipe Post URL and click "Fetch Post Content"
-3. Review and modify the detected GitHub/Gist links
-4. Click "Process Snippets" to fetch code content
-5. Click "Generate Prompt" to create the formatted prompt
-6. Copy the prompt to clipboard and paste it into ChatGPT
+2. Enter a Tooltip Recipe Post URL and click "Continue to Next Step"
+3. Manually paste the post title and content in Markdown format
+   - Use browser extensions suggested by the form to convert HTML content to Markdown if needed
+4. Add, edit, or remove GitHub/Gist code snippet links (optional)
+5. Click "Process Snippets" if using code snippets, or proceed directly to generating the prompt
+6. Click "Generate Prompt" to create the formatted prompt
+7. Copy the prompt to clipboard and paste it into ChatGPT
 
 ## Security and Access
 
@@ -61,16 +64,28 @@ The plugin provides several hooks for customization:
 
 ## Troubleshooting
 
-- **Cross-Domain Issues**: Make sure the Tooltip Recipe Post site allows cross-origin requests
-- **GitHub Rate Limits**: Add a GitHub token in the settings to increase rate limits
-- **Empty Content**: Check if the post URL is valid and accessible
+- **GitHub Rate Limits**: Add a GitHub token in the settings to increase rate limits for code snippet retrieval
+- **Markdown Formatting**: Ensure proper Markdown formatting when pasting content in Step 2
 - **Code Snippet Errors**: Verify that GitHub/Gist links are correctly formatted
+- **Browser Extension Issues**: If suggested extensions don't work well, try a different one from the list
+
+## Browser Extensions for Markdown Conversion
+
+The plugin suggests browser extensions for converting HTML content to Markdown based on your browser. These suggestions are dynamic and display different options based on browser detection. A comprehensive list of supported extensions is maintained in the plugin's `briefs/browser-extension-list.md` file.
+
+Supported browsers include:
+- Chrome/Chromium
+- Firefox
+- Safari
+- Microsoft Edge
 
 ## Developer Notes
 
 The plugin uses custom database tables to store:
-1. Fetched post content
-2. Code snippet URLs and content
+1. Post URLs and user-provided markdown content
+2. Code snippet URLs and content (optional)
 3. Generated prompts
 
 Data is cleaned up automatically based on the configured expiry time.
+
+The workflow has been optimized to handle paywalled or member-only content by allowing users to manually paste markdown content instead of attempting to automatically fetch it.

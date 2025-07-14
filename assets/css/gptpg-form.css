@@ -81,7 +81,7 @@
     margin-bottom: 5px;
 }
 
-.gptpg-input {
+.gptpg-input, .gptpg-textarea {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
@@ -186,7 +186,7 @@
 
 /* Notification */
 .gptpg-notification {
-    display: none;
+    /* Removed display: none to make browser extensions always visible */
     margin: 15px 0;
     padding: 10px;
     background-color: #d1ecf1;

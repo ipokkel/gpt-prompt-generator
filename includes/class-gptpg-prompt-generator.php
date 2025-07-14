@@ -93,9 +93,9 @@ class GPTPG_Prompt_Generator {
 	 */
 	public static function get_placeholder_descriptions() {
 		return array(
-			'[link_code_recipe]'      => __( 'Replaced with the raw code from GitHub repositories or gists.', 'gpt-prompt-generator' ),
-			'[existing_post_content]' => __( 'Replaced with the fetched post content in Markdown format.', 'gpt-prompt-generator' ),
-			'[post_title]'            => __( 'Replaced with the title of the fetched post.', 'gpt-prompt-generator' ),
+			'[link_code_recipe]'      => __( 'Replaced with the raw code from GitHub repositories or gists (optional).', 'gpt-prompt-generator' ),
+			'[existing_post_content]' => __( 'Replaced with the user-provided post content in Markdown format.', 'gpt-prompt-generator' ),
+			'[post_title]'            => __( 'Replaced with the title entered by the user.', 'gpt-prompt-generator' ),
 		);
 	}
 

@@ -23,7 +23,8 @@ class GPTPG_Form_Handler {
 	 * Initialize the class.
 	 */
 	public static function init() {
-		// Nothing to initialize for now
+		// Register AJAX handlers
+		add_action( 'wp_ajax_gptpg_store_markdown', array( __CLASS__, 'ajax_store_markdown' ) );
 	}
 
 	/**
@@ -126,6 +127,59 @@ class GPTPG_Form_Handler {
 			'session_id'   => $session_id,
 			'post_title'   => $post_data['title'],
 			'github_links' => $github_links,
+		) );
+	}
+
+	/**
+	 * AJAX handler for storing and processing markdown content.
+	 */
+	public static function ajax_store_markdown() {
+		// Check nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg-nonce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
+		}
+
+		// Check if user is logged in
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error( array( 'message' => __( 'You must be logged in to use this feature.', 'gpt-prompt-generator' ) ) );
+		}
+
+		// Check for required fields
+		if ( ! isset( $_POST['post_url'] ) || ! isset( $_POST['post_content'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Missing required fields.', 'gpt-prompt-generator' ) ) );
+		}
+
+		// Sanitize and validate input
+		$post_url = esc_url_raw( wp_unslash( $_POST['post_url'] ) );
+		$post_title = ''; // Empty title as per new requirements
+		$post_content = wp_kses_post( wp_unslash( $_POST['post_content'] ) );
+
+		// Generate a new session ID
+		$session_id = self::generate_session_id();
+
+		// Store post data in database
+		$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
+		$post_id = GPTPG_Database::store_post(
+			$session_id,
+			$post_url,
+			$post_title,
+			'', // Empty original content since we don't fetch it
+			$post_content, // Markdown content provided by user
+			time() + $expiry_time
+		);
+
+		// Check if post was stored successfully
+		if ( ! $post_id ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to store post data.', 'gpt-prompt-generator' ) ) );
+		}
+
+		// Extract GitHub/Gist links from markdown content (optional in new workflow)
+		$github_links = array(); // Empty array as we're not extracting links automatically now
+
+		// Return response
+		wp_send_json_success( array(
+			'session_id' => $session_id,
+			'github_links' => $github_links
 		) );
 	}
 
@@ -284,10 +338,11 @@ class GPTPG_Form_Handler {
 			wp_send_json_error( array( 'message' => __( 'Session expired or invalid.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Get snippets from the database
+		// Get snippets from the database (now optional)
 		$snippets = GPTPG_Database::get_snippets_by_session( $session_id );
-		if ( empty( $snippets ) ) {
-			wp_send_json_error( array( 'message' => __( 'No code snippets available.', 'gpt-prompt-generator' ) ) );
+		// We now allow empty snippets in our new workflow
+		if ( ! is_array( $snippets ) ) {
+			$snippets = array();
 		}
 
 		// Generate the prompt
