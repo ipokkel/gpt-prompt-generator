@@ -1,0 +1,24 @@
+# Composer
+/vendor/
+composer.phar
+
+# Project specific
+/briefs/
+grok-prompt-brief.md
+
+# General
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+
+# Logs
+*.log
+error_log
