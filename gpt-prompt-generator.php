@@ -31,9 +31,9 @@ require_once GPTPG_PLUGIN_DIR . 'includes/class-gptpg-main.php';
  *
  * @return GPTPG_Plugin
  */
-function GPTPG() {
+function gptpg_get_instance() {
 	return GPTPG_Plugin::get_instance();
 }
 
 // Initialize the plugin
-GPTPG();
+gptpg_get_instance();
