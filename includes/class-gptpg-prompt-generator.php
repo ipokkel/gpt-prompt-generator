@@ -65,17 +65,19 @@ class GPTPG_Prompt_Generator {
 		// Replace [existing_post_content] with the markdown content
 		$prompt = str_replace( '[existing_post_content]', $post_content_markdown, $prompt );
 		
-		// Replace [link_code_recipe] with code snippets
+		// Replace [link_old_post] with the original post URL
+		$prompt = str_replace( '[link_old_post]', $post_data->post_url, $prompt );
+		
+		// Replace [link_code_recipe] with code snippet links only (not code content)
 		if ( ! empty( $code_snippets ) ) {
-			$code_block = '';
+			$links_list = '';
 			
 			foreach ( $code_snippets as $snippet ) {
-				// Add URL as comment at the top of the code block
-				$code_block .= "// Source: {$snippet['url']}\n";
-				$code_block .= "{$snippet['content']}\n\n";
+				// Add only the URL
+				$links_list .= "{$snippet['url']}\n";
 			}
 			
-			$prompt = str_replace( '[link_code_recipe]', $code_block, $prompt );
+			$prompt = str_replace( '[link_code_recipe]', $links_list, $prompt );
 		} else {
 			$prompt = str_replace( '[link_code_recipe]', __( '[No code snippets found]', 'gpt-prompt-generator' ), $prompt );
 		}

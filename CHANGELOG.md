@@ -6,10 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2025-07-14
+### Added
+- Added support for [link_old_post] placeholder in prompt templates
+- Updated [link_code_recipe] to only include links to code snippets, not the code content itself
+
 ## [0.0.2] - 2025-07-14
 ### Added
 - Implemented markdown content cleanup to strip out author information, footers, and irrelevant content
 - Created 4-step form workflow separating code snippets (Step 3) from prompt generation (Step 4)
+- Added post title extraction from markdown content to support [post_title] placeholder in prompt templates
 
 ### Changed
 - Updated step navigation in JavaScript to support 4-step workflow

@@ -151,11 +151,13 @@ class GPTPG_Form_Handler {
 
 		// Sanitize and validate input
 		$post_url = esc_url_raw( wp_unslash( $_POST['post_url'] ) );
-		$post_title = ''; // Empty title as per new requirements
 		$post_content = wp_kses_post( wp_unslash( $_POST['post_content'] ) );
 		
 		// Clean up markdown content by removing author/footer information
 		$post_content = self::clean_markdown_content( $post_content );
+		
+		// Extract title from markdown content
+		$post_title = self::extract_title_from_markdown( $post_content );
 
 		// Generate a new session ID
 		$session_id = self::generate_session_id();
@@ -182,6 +184,7 @@ class GPTPG_Form_Handler {
 		// Return response
 		wp_send_json_success( array(
 			'session_id' => $session_id,
+			'post_title' => $post_title,
 			'github_links' => $github_links
 		) );
 	}
@@ -462,10 +465,34 @@ class GPTPG_Form_Handler {
 	}
 
 	/**
+	 * Extract title from markdown content.
+	 *
+	 * @param string $markdown The markdown content.
+	 * @return string The extracted title or empty string if not found.
+	 */
+	public static function extract_title_from_markdown( $markdown ) {
+		// Try to find heading level 1 (#) at start of content
+		if ( preg_match( '/^\s*#\s+(.+?)\s*$/m', $markdown, $matches ) ) {
+			return trim( $matches[1] );
+		}
+
+		// Try to find the first non-empty line as a fallback
+		$lines = explode( "\n", $markdown );
+		foreach ( $lines as $line ) {
+			$line = trim( $line );
+			if ( ! empty( $line ) && strpos( $line, '#' ) !== 0 ) { // Not an empty line or heading
+				return $line;
+			}
+		}
+
+		return ''; // Return empty string if no title found
+	}
+
+	/**
 	 * Clean markdown content by removing author/footer information.
 	 *
 	 * @param string $content The markdown content to clean.
-	 * @return string The cleaned markdown content.
+	 * @return string Cleaned markdown content.
 	 */
 	public static function clean_markdown_content( $content ) {
 		// Pattern to match author information sections
