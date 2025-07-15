@@ -93,7 +93,7 @@ class GPTPG_Form_Handler {
 
 		// Store post data in database
 		$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
-		$post_id = GPTPG_Database::store_post(
+		$store_result = GPTPG_Database::store_post(
 			$session_id,
 			$post_url,
 			$post_data['title'],
@@ -102,32 +102,100 @@ class GPTPG_Form_Handler {
 			$expiry_time
 		);
 
-		if ( ! $post_id ) {
+		// Check if we got a valid result array
+		if ( ! isset( $store_result['post_id'] ) ) {
 			wp_send_json_error( array( 'message' => __( 'Failed to store post data.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		$post_id = $store_result['post_id'];
+		$is_duplicate = isset( $store_result['is_duplicate'] ) ? $store_result['is_duplicate'] : false;
+		
+		// If this is a duplicate post, fetch associated data
+		$existing_data = array();
+		if ( $is_duplicate ) {
+			$existing_data = GPTPG_Database::get_post_data_by_id( $post_id );
 		}
 
 		// Extract GitHub/Gist links from post content
 		$github_links = GPTPG_GitHub_Handler::extract_github_urls( $post_data['content'] );
 
 		// Store code snippets in database
+		$snippet_results = [];
 		foreach ( $github_links as $link ) {
 			$snippet_type = GPTPG_GitHub_Handler::get_github_url_type( $link );
 			if ( $snippet_type ) {
-				GPTPG_Database::store_snippet(
+				$snippet_result = GPTPG_Database::store_snippet(
 					$session_id,
 					$post_id,
 					$link,
 					$snippet_type
 				);
+				
+				if (isset($snippet_result['is_duplicate']) && $snippet_result['is_duplicate']) {
+					$snippet_results[] = [
+						'url' => $link,
+						'is_duplicate' => true
+					];
+				}
 			}
 		}
 
-		// Return success response
-		wp_send_json_success( array(
+		// Prepare response data
+		$response_data = array(
 			'session_id'   => $session_id,
 			'post_title'   => $post_data['title'],
 			'github_links' => $github_links,
-		) );
+			'is_duplicate_post' => $is_duplicate,
+			'duplicate_snippets' => $snippet_results
+		);
+		
+		// Add existing data for duplicate posts
+		if ( $is_duplicate && !empty( $existing_data ) ) {
+			// Force boolean values for flags
+			$response_data['has_markdown'] = !empty( $existing_data['has_markdown'] ) ? true : false;
+			$response_data['has_snippets'] = !empty( $existing_data['has_snippets'] ) ? true : false;
+			$response_data['has_prompt'] = !empty( $existing_data['has_prompt'] ) ? true : false;
+			
+			// Explicitly check snippets array and update flag
+			if ( !empty( $existing_data['snippets'] ) && is_array( $existing_data['snippets'] ) && count( $existing_data['snippets'] ) > 0 ) {
+				$response_data['has_snippets'] = true;
+			}
+			
+			// Explicitly check prompt and update flag
+			if ( !empty( $existing_data['prompt'] ) ) {
+				$response_data['has_prompt'] = true;
+			}
+			
+			// Include content if available
+			if ( !empty( $existing_data['markdown_content'] ) ) {
+				$response_data['markdown_content'] = $existing_data['markdown_content'];
+			}
+			
+			if ( !empty( $existing_data['snippets'] ) ) {
+				$response_data['snippets'] = $existing_data['snippets'];
+			}
+			
+			if ( !empty( $existing_data['prompt'] ) ) {
+				$response_data['prompt'] = $existing_data['prompt'];
+			}
+			
+			// Add ALL debug info directly from the database response
+			$response_data['_debug'] = $existing_data['_debug'] ?? array(
+				'has_markdown_raw' => $existing_data['has_markdown'],
+				'has_snippets_raw' => $existing_data['has_snippets'],
+				'has_prompt_raw' => $existing_data['has_prompt'],
+				'snippets_count' => is_array($existing_data['snippets']) ? count($existing_data['snippets']) : 0,
+				'prompt_length' => !empty($existing_data['prompt']) ? strlen($existing_data['prompt']) : 0
+			);
+			
+			// Include the debug property too
+			if ( isset( $existing_data['debug'] ) ) {
+				$response_data['debug'] = $existing_data['debug'];
+			}
+		}
+		
+		// Return success response
+		wp_send_json_success( $response_data );
 	}
 
 	/**
@@ -270,20 +338,27 @@ class GPTPG_Form_Handler {
 			// Process based on whether it's an existing snippet or a new one
 			if ( $snippet_id && in_array( $snippet_id, $existing_ids, true ) ) {
 				// Update existing snippet
-				GPTPG_Database::update_snippet( $snippet_id, $snippet_url, $code_content );
+				GPTPG_Database::update_snippet( $snippet_id, $session_id, $snippet_url, $code_content );
 				$processed_ids[] = $snippet_id;
 			} else {
 				// Add new snippet
-				$new_snippet_id = GPTPG_Database::store_snippet(
+				$snippet_result = GPTPG_Database::store_snippet(
 					$session_id,
-					$post_data->id,
+					$post_data->post_id, // Note: Using post_id from normalized schema
 					$snippet_url,
 					$url_type,
 					$code_content,
 					true // User edited
 				);
-				if ( $new_snippet_id ) {
+				
+				if ( isset($snippet_result['snippet_id']) ) {
+					$new_snippet_id = $snippet_result['snippet_id'];
 					$processed_ids[] = $new_snippet_id;
+					
+					// Check if it's a duplicate
+					if ( isset($snippet_result['is_duplicate']) && $snippet_result['is_duplicate'] ) {
+						$snippet['is_duplicate'] = true;
+					}
 				}
 			}
 		}
@@ -355,11 +430,15 @@ class GPTPG_Form_Handler {
 		$prompt_content = GPTPG_Prompt_Generator::generate_prompt( $post_data, $snippets );
 
 		// Store the generated prompt in the database
-		GPTPG_Database::store_prompt( $session_id, $post_data->id, $prompt_content );
+		$prompt_result = GPTPG_Database::store_prompt( $session_id, $post_data->post_id, $prompt_content );
+		
+		// Check for duplicate prompt
+		$is_duplicate = isset($prompt_result['is_duplicate']) ? $prompt_result['is_duplicate'] : false;
 
 		// Return success response
 		wp_send_json_success( array(
 			'prompt' => $prompt_content,
+			'is_duplicate' => $is_duplicate
 		) );
 	}
 

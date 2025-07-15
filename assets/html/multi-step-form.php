@@ -45,6 +45,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 			</div>
 			
 			<div class="gptpg-error-message"></div>
+			<div class="gptpg-warning-message"></div>
 			
 			<div class="gptpg-form-buttons">
 				<div></div> <!-- Empty div for flex spacing -->
@@ -100,6 +101,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 			</div>
 			
 			<div class="gptpg-error-message"></div>
+			<div class="gptpg-warning-message"></div>
 			
 			<div class="gptpg-form-buttons">
 				<button type="button" class="button gptpg-form-nav-button prev" data-step="1">
@@ -148,6 +150,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 4: Generate Prompt', 'gpt-prompt-generator' ); ?></h2>
 		
 		<p><?php esc_html_e( 'Click the button below to generate a prompt using the post content and code snippets.', 'gpt-prompt-generator' ); ?></p>
+		
+		<div class="gptpg-error-message"></div>
+		<div class="gptpg-warning-message"></div>
 		
 		<div class="gptpg-form-buttons">
 			<button type="button" class="button gptpg-form-nav-button prev" data-step="3">

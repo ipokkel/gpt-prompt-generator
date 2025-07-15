@@ -198,6 +198,34 @@
     color: #0c5460;
 }
 
+/* Duplicate options */
+.gptpg-duplicate-options {
+    margin: 15px 0;
+    padding: 15px;
+    border-radius: 4px;
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+}
+
+.gptpg-duplicate-options h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #856404;
+}
+
+.gptpg-duplicate-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.gptpg-duplicate-buttons button {
+    flex: 1 1 auto;
+    min-width: 150px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 600px) {
     .gptpg-form-container {

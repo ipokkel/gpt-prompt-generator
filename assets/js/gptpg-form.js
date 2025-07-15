@@ -94,14 +94,15 @@
             $('#gptpg-step-indicator-' + step).addClass('active');
         },
         
-        // Store post URL and move to next step
+        // Fetch and process post URL
         fetchPostUrl: function() {
             const urlForm = $('#gptpg-url-form');
             const urlInput = $('#gptpg-post-url');
             const url = urlInput.val().trim();
             
-            // Clear previous errors
+            // Clear previous errors and warnings
             GPTPG_Form.clearError(urlForm);
+            GPTPG_Form.clearWarning(urlForm);
             
             // Basic URL validation
             if (!url || !url.match(/^https?:\/\/.+/)) {
@@ -112,11 +113,128 @@
             // Store URL
             GPTPG_Form.postUrl = url;
             
-            // Display URL in next step
-            $('#gptpg-display-url').text(url);
+            // Show loading indicator
+            GPTPG_Form.showLoading(urlForm);
             
-            // Navigate to step 2
-            GPTPG_Form.navigateToStep(2);
+            // Send AJAX request to fetch post data
+            $.ajax({
+                url: gptpg_vars.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'gptpg_fetch_post',
+                    nonce: gptpg_vars.nonce,
+                    post_url: url
+                },
+                success: function(response) {
+                    GPTPG_Form.hideLoading(urlForm);
+                    
+                    if (response.success) {
+                        // Store session ID and post title
+                        GPTPG_Form.sessionId = response.data.session_id;
+                        GPTPG_Form.postTitle = response.data.post_title;
+                        
+                        // Display URL in next step
+                        $('#gptpg-display-url').text(url);
+                        
+                        // Check if this is a duplicate post
+                        if (response.data.is_duplicate_post) {
+                            // Clear any previous duplicate content options
+                            $('#gptpg-duplicate-options').remove();
+                            
+                            // Create duplicate content options container
+                            let duplicateOptionsHtml = '<div id="gptpg-duplicate-options" class="gptpg-duplicate-options">';
+                            duplicateOptionsHtml += '<h3>This post has been processed before</h3>';
+                            duplicateOptionsHtml += '<p>You have the following options:</p>';
+                            duplicateOptionsHtml += '<div class="gptpg-duplicate-buttons">';
+                            
+                            // Debug logging removed
+                            
+                            // Always show markdown button for duplicate posts since we should have markdown content
+                            duplicateOptionsHtml += '<button type="button" id="gptpg-view-markdown" class="button">View Existing Markdown</button>';
+                            
+                            // Check if we have existing snippets - more flexible checking
+                            if (response.data.has_snippets === true || 
+                                response.data.has_snippets === 'true' || 
+                                response.data.has_snippets === 1 || 
+                                (response.data.snippets && response.data.snippets.length > 0)) {
+
+                                duplicateOptionsHtml += '<button type="button" id="gptpg-view-snippets" class="button">View Existing Snippets</button>';
+                            }
+                            
+                            // Check if we have existing prompt - more flexible checking
+                            if (response.data.has_prompt === true || 
+                                response.data.has_prompt === 'true' || 
+                                response.data.has_prompt === 1 || 
+                                response.data.prompt) {
+
+                                duplicateOptionsHtml += '<button type="button" id="gptpg-view-prompt" class="button">View Existing Prompt</button>';
+                            }
+                            
+                            // Add option to update content
+                            duplicateOptionsHtml += '<button type="button" id="gptpg-update-content" class="button button-primary">Update Existing Content</button>';
+                            duplicateOptionsHtml += '</div></div>';
+                            
+                            // Show warning with options
+                            GPTPG_Form.showWarning(urlForm, duplicateOptionsHtml);
+                            
+                            // Add click handlers
+                            $('#gptpg-view-markdown').on('click', function() {
+                                // Load existing markdown content
+                                GPTPG_Form.navigateToStep(2);
+                                // Pre-populate markdown field
+                                if (response.data.markdown_content) {
+                                    $('#gptpg-markdown-content').val(response.data.markdown_content);
+                                }
+                            });
+                            
+                            $('#gptpg-view-snippets').on('click', function() {
+                                // Navigate to snippets step
+                                GPTPG_Form.navigateToStep(3);
+                                // Pre-populate snippets
+                                GPTPG_Form.populateExistingSnippets(response.data.snippets || []);
+                            });
+                            
+                            $('#gptpg-view-prompt').on('click', function() {
+                                // Navigate to prompt step
+                                GPTPG_Form.navigateToStep(4);
+                                // Pre-populate prompt
+                                if (response.data.prompt) {
+                                    $('#gptpg-generated-prompt').val(response.data.prompt);
+                                    $('#gptpg-prompt-container').show();
+                                }
+                            });
+                            
+                            $('#gptpg-update-content').on('click', function() {
+                                // Navigate to step 2 to continue the normal flow
+                                GPTPG_Form.navigateToStep(2);
+                            });
+                            
+                        } else {
+                            // Navigate to step 2
+                            GPTPG_Form.navigateToStep(2);
+                        }
+                        
+                        // Check for duplicate snippets
+                        if (response.data.duplicate_snippets && response.data.duplicate_snippets.length > 0) {
+                            let snippetsList = '';
+                            response.data.duplicate_snippets.forEach(function(snippet) {
+                                snippetsList += '<li>' + snippet.url + '</li>';
+                            });
+                            
+                            if (snippetsList) {
+                                GPTPG_Form.showWarning($('#gptpg-step-2'), 
+                                    'Some code snippets have been processed before:<ul>' + snippetsList + '</ul>');
+                            }
+                        }
+                    } else {
+                        GPTPG_Form.showError(urlForm, response.data.message || gptpg_vars.error_fetch_failed);
+                    }
+                },
+                error: function() {
+                    GPTPG_Form.hideLoading(urlForm);
+                    GPTPG_Form.showError(urlForm, gptpg_vars.error_ajax_failed);
+                }
+            });
         },
         
         // Process markdown content
@@ -201,6 +319,52 @@
             }
         },
         
+        // Populate existing snippets from database
+        populateExistingSnippets: function(snippets) {
+            const container = $('#gptpg-snippets-container');
+            
+            // Clear container
+            container.empty();
+            
+            // Add snippets
+            if (snippets && snippets.length > 0) {
+                snippets.forEach(function(snippet) {
+                    // Get URL from snippet object
+                    const url = snippet.url || '';
+                    // Get ID from snippet object
+                    const id = snippet.id || 0;
+                    
+                    // Add new row
+                    const row = $('<div class="gptpg-snippet-row"></div>');
+                    row.data('id', id);
+                    
+                    // Add hidden ID field
+                    const idField = $('<input type="hidden" class="gptpg-snippet-id">');
+                    idField.val(id);
+                    row.append(idField);
+                    
+                    // Add URL input field
+                    const urlContainer = $('<div class="gptpg-snippet-url"></div>');
+                    const urlInput = $('<input type="text" class="gptpg-snippet-url-input" placeholder="https://github.com/user/repo/...">');
+                    urlInput.val(url);
+                    urlContainer.append(urlInput);
+                    row.append(urlContainer);
+                    
+                    // Add delete button
+                    const actions = $('<div class="gptpg-snippet-actions"></div>');
+                    const deleteButton = $('<button type="button" class="button gptpg-delete-snippet">Remove</button>');
+                    actions.append(deleteButton);
+                    row.append(actions);
+                    
+                    // Add to container
+                    container.append(row);
+                });
+            } else {
+                // Add an empty field if no snippets
+                GPTPG_Form.addSnippetField();
+            }
+        },
+        
         // Add a new snippet field
         addSnippetField: function(url = '') {
             const container = $('#gptpg-snippets-container');
@@ -267,16 +431,41 @@
                         // Store snippets
                         GPTPG_Form.snippets = response.data.snippets;
                         
-                        // Show errors if any
-                        if (response.data.errors && response.data.errors.length > 0) {
-                            const errorMessages = response.data.errors.join('<br>');
-                            GPTPG_Form.showWarning($('#gptpg-step-3'), errorMessages);
-                        } else {
-                            GPTPG_Form.clearWarning($('#gptpg-step-3'));
+                        // Check for duplicate snippets
+                        let duplicateWarnings = [];
+                        let hasWarnings = false;
+                        
+                        // Add duplicate snippet warnings
+                        if (response.data.snippets && response.data.snippets.length > 0) {
+                            response.data.snippets.forEach(function(snippet) {
+                                if (snippet.is_duplicate) {
+                                    duplicateWarnings.push('The snippet at URL <strong>' + snippet.url + '</strong> was already processed before. The existing snippet has been updated.');
+                                    hasWarnings = true;
+                                }
+                            });
                         }
                         
-                        // Navigate to step 4
-                        GPTPG_Form.navigateToStep(4);
+                        // Show existing errors if any
+                        if (response.data.errors && response.data.errors.length > 0) {
+                            const errorMessages = response.data.errors.join('<br>');
+                            duplicateWarnings.push(errorMessages);
+                            hasWarnings = true;
+                        }
+                        
+                        // Display all warnings
+                        if (hasWarnings) {
+                            const warningHtml = duplicateWarnings.join('<br><br>');
+                            GPTPG_Form.showWarning($('#gptpg-step-3'), warningHtml);
+                            
+                            // Add a small delay before proceeding to ensure the warning is seen
+                            setTimeout(function() {
+                                GPTPG_Form.navigateToStep(4);
+                            }, 2000);
+                        } else {
+                            GPTPG_Form.clearWarning($('#gptpg-step-3'));
+                            // Navigate to step 4
+                            GPTPG_Form.navigateToStep(4);
+                        }
                     } else {
                         GPTPG_Form.showError($('#gptpg-step-3'), response.data.message);
                     }
@@ -321,6 +510,12 @@
                         
                         // Setup new button
                         $('#gptpg-start-new').on('click', GPTPG_Form.reset);
+                        
+                        // Check for duplicate prompt
+                        if (response.data.is_duplicate_prompt) {
+                            GPTPG_Form.showWarning($('#gptpg-step-4'), 
+                                'This prompt was generated before for similar content. The existing prompt has been updated.');
+                        }
                     } else {
                         GPTPG_Form.showError($('#gptpg-step-4'), response.data.message);
                     }
