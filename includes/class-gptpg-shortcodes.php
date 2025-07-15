@@ -85,8 +85,11 @@ class GPTPG_Shortcodes {
 		
 		// Check if we're on the selected page and it's not in the admin
 		if ( ! is_admin() && $page_id && is_page( $page_id ) ) {
-			// Add the form shortcode to the content
-			$content .= do_shortcode( '[gptpg_prompt_form]' );
+			// Check if the shortcode already exists in the content to avoid duplication
+			if ( false === strpos( $content, '[gptpg_prompt_form' ) ) {
+				// Add the form shortcode to the content
+				$content .= do_shortcode( '[gptpg_prompt_form]' );
+			}
 		}
 		
 		return $content;
