@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2025-07-15
+### Changed
+- Renamed `user_edited` column in the `gptpg_code_snippets` table to `is_user_edited` for better clarity
+- Fixed duplicate "You must be logged in" message for non-logged-in users
+
 ## [0.0.3] - 2025-07-14
 ### Added
 - Added support for [link_old_post] placeholder in prompt templates

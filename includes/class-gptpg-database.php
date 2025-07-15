@@ -43,8 +43,42 @@ class GPTPG_Database {
 	 * Check if we need to update the database.
 	 */
 	public static function check_version() {
-		if ( self::get_db_version() !== GPTPG_VERSION ) {
+		$current_db_version = self::get_db_version();
+		
+		// If versions don't match, perform necessary upgrades
+		if ( $current_db_version !== GPTPG_VERSION ) {
+			// Create or update tables
 			self::create_tables();
+			
+			// Perform version-specific upgrades
+			if ( version_compare( $current_db_version, '0.0.4', '<' ) ) {
+				self::upgrade_0_0_4();
+			}
+			
+			// Update the database version
+			update_option( 'gptpg_db_version', GPTPG_VERSION );
+		}
+	}
+	
+	/**
+	 * Upgrade database to version 0.0.4
+	 * - Renames user_edited column to is_user_edited in gptpg_code_snippets table
+	 */
+	private static function upgrade_0_0_4() {
+		global $wpdb;
+		
+		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
+		
+		// Check if the column exists before attempting to rename
+		$column_exists = $wpdb->get_results(
+			"SHOW COLUMNS FROM {$table_snippets} LIKE 'user_edited'"
+		);
+		
+		if ( !empty( $column_exists ) ) {
+			// Rename column from user_edited to is_user_edited
+			$wpdb->query(
+				"ALTER TABLE {$table_snippets} CHANGE `user_edited` `is_user_edited` tinyint(1) NOT NULL DEFAULT 0"
+			);
 		}
 	}
 
@@ -84,7 +118,7 @@ class GPTPG_Database {
 			snippet_url varchar(2083) NOT NULL,
 			snippet_type varchar(50) NOT NULL,
 			snippet_content longtext,
-			user_edited tinyint(1) NOT NULL DEFAULT 0,
+			is_user_edited tinyint(1) NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			PRIMARY KEY (id),
 			KEY session_id (session_id),
@@ -190,11 +224,11 @@ class GPTPG_Database {
 	 * @param string $snippet_url     URL of the code snippet.
 	 * @param string $snippet_type    Type of snippet (github, gist, raw).
 	 * @param string $snippet_content Optional content of the snippet.
-	 * @param bool   $user_edited     Whether this snippet was edited by the user.
+	 * @param bool   $is_user_edited  Whether this snippet was edited by the user.
 	 * 
 	 * @return int|false Snippet ID on success, false on failure.
 	 */
-	public static function store_snippet( $session_id, $post_id, $snippet_url, $snippet_type, $snippet_content = '', $user_edited = false ) {
+	public static function store_snippet( $session_id, $post_id, $snippet_url, $snippet_type, $snippet_content = '', $is_user_edited = false ) {
 		global $wpdb;
 		
 		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
@@ -207,7 +241,7 @@ class GPTPG_Database {
 				'snippet_url'     => $snippet_url,
 				'snippet_type'    => $snippet_type,
 				'snippet_content' => $snippet_content,
-				'user_edited'     => $user_edited ? 1 : 0,
+				'is_user_edited'  => $is_user_edited ? 1 : 0,
 				'created_at'      => current_time( 'mysql', true ),
 			),
 			array( '%s', '%d', '%s', '%s', '%s', '%d', '%s' )
@@ -322,7 +356,7 @@ class GPTPG_Database {
 			array(
 				'snippet_url'     => $snippet_url,
 				'snippet_content' => $snippet_content,
-				'user_edited'     => 1,
+				'is_user_edited'  => 1,
 			),
 			array( 'id' => $snippet_id ),
 			array( '%s', '%s', '%d' ),
