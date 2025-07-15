@@ -55,6 +55,10 @@ class GPTPG_Database {
 				self::upgrade_0_0_4();
 			}
 			
+			if ( version_compare( $current_db_version, '0.0.5', '<' ) ) {
+				self::upgrade_0_0_5();
+			}
+			
 			// Update the database version
 			update_option( 'gptpg_db_version', GPTPG_VERSION );
 		}
@@ -81,6 +85,34 @@ class GPTPG_Database {
 			);
 		}
 	}
+	
+	/**
+	 * Upgrade database to version 0.0.5
+	 * - Adds user_id column to all tables to track which user performed the action
+	 */
+	private static function upgrade_0_0_5() {
+		global $wpdb;
+		
+		$tables = array(
+			$wpdb->prefix . 'gptpg_posts',
+			$wpdb->prefix . 'gptpg_code_snippets',
+			$wpdb->prefix . 'gptpg_prompts'
+		);
+		
+		foreach ( $tables as $table ) {
+			// Check if the column already exists to avoid errors
+			$column_exists = $wpdb->get_results(
+				"SHOW COLUMNS FROM {$table} LIKE 'user_id'"
+			);
+			
+			if ( empty( $column_exists ) ) {
+				// Add user_id column after the id column
+				$wpdb->query(
+					"ALTER TABLE {$table} ADD COLUMN `user_id` bigint(20) unsigned DEFAULT NULL AFTER `id`"
+				);
+			}
+		}
+	}
 
 	/**
 	 * Create database tables.
@@ -96,6 +128,7 @@ class GPTPG_Database {
 		$table_posts = $wpdb->prefix . 'gptpg_posts';
 		$sql_posts = "CREATE TABLE $table_posts (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned DEFAULT NULL,
 			session_id varchar(255) NOT NULL,
 			post_url varchar(2083) NOT NULL,
 			post_title text NOT NULL,
@@ -105,7 +138,8 @@ class GPTPG_Database {
 			expires_at datetime NOT NULL,
 			PRIMARY KEY (id),
 			KEY session_id (session_id),
-			KEY expires_at (expires_at)
+			KEY expires_at (expires_at),
+			KEY user_id (user_id)
 		) $charset_collate;";
 		dbDelta( $sql_posts );
 
@@ -113,6 +147,7 @@ class GPTPG_Database {
 		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
 		$sql_snippets = "CREATE TABLE $table_snippets (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned DEFAULT NULL,
 			session_id varchar(255) NOT NULL,
 			post_id bigint(20) unsigned NOT NULL,
 			snippet_url varchar(2083) NOT NULL,
@@ -122,7 +157,8 @@ class GPTPG_Database {
 			created_at datetime NOT NULL,
 			PRIMARY KEY (id),
 			KEY session_id (session_id),
-			KEY post_id (post_id)
+			KEY post_id (post_id),
+			KEY user_id (user_id)
 		) $charset_collate;";
 		dbDelta( $sql_snippets );
 
@@ -130,13 +166,15 @@ class GPTPG_Database {
 		$table_prompts = $wpdb->prefix . 'gptpg_prompts';
 		$sql_prompts = "CREATE TABLE $table_prompts (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned DEFAULT NULL,
 			session_id varchar(255) NOT NULL,
 			post_id bigint(20) unsigned NOT NULL,
 			prompt_content longtext NOT NULL,
 			created_at datetime NOT NULL,
 			PRIMARY KEY (id),
 			KEY session_id (session_id),
-			KEY post_id (post_id)
+			KEY post_id (post_id),
+			KEY user_id (user_id)
 		) $charset_collate;";
 		dbDelta( $sql_prompts );
 
@@ -199,9 +237,13 @@ class GPTPG_Database {
 		
 		$table_posts = $wpdb->prefix . 'gptpg_posts';
 		
+		// Get current user ID if logged in
+		$current_user_id = get_current_user_id();
+		
 		$result = $wpdb->insert(
 			$table_posts,
 			array(
+				'user_id'              => $current_user_id ? $current_user_id : NULL,
 				'session_id'           => $session_id,
 				'post_url'             => $post_url,
 				'post_title'           => $post_title,
@@ -210,7 +252,7 @@ class GPTPG_Database {
 				'created_at'           => current_time( 'mysql', true ),
 				'expires_at'           => gmdate( 'Y-m-d H:i:s', time() + $expires_in ),
 			),
-			array( '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
+			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 		
 		return $result ? $wpdb->insert_id : false;
@@ -233,9 +275,13 @@ class GPTPG_Database {
 		
 		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
 		
+		// Get current user ID if logged in
+		$current_user_id = get_current_user_id();
+		
 		$result = $wpdb->insert(
 			$table_snippets,
 			array(
+				'user_id'         => $current_user_id ? $current_user_id : NULL,
 				'session_id'      => $session_id,
 				'post_id'         => $post_id,
 				'snippet_url'     => $snippet_url,
@@ -244,7 +290,7 @@ class GPTPG_Database {
 				'is_user_edited'  => $is_user_edited ? 1 : 0,
 				'created_at'      => current_time( 'mysql', true ),
 			),
-			array( '%s', '%d', '%s', '%s', '%s', '%d', '%s' )
+			array( '%d', '%s', '%d', '%s', '%s', '%s', '%d', '%s' )
 		);
 		
 		return $result ? $wpdb->insert_id : false;
@@ -264,15 +310,19 @@ class GPTPG_Database {
 		
 		$table_prompts = $wpdb->prefix . 'gptpg_prompts';
 		
+		// Get current user ID if logged in
+		$current_user_id = get_current_user_id();
+		
 		$result = $wpdb->insert(
 			$table_prompts,
 			array(
+				'user_id'        => $current_user_id ? $current_user_id : NULL,
 				'session_id'     => $session_id,
 				'post_id'        => $post_id,
 				'prompt_content' => $prompt_content,
 				'created_at'     => current_time( 'mysql', true ),
 			),
-			array( '%s', '%d', '%s', '%s' )
+			array( '%d', '%s', '%d', '%s', '%s' )
 		);
 		
 		return $result ? $wpdb->insert_id : false;
