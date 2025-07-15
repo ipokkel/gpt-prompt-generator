@@ -75,7 +75,11 @@ class GPTPG_DB_Update_Helper {
                 );
                 echo "<p>Renamed user_edited column to is_user_edited in {$table_snippets}</p>";
             } else {
-                echo "<p>Both user_edited and is_user_edited columns exist. This may need manual cleanup.</p>";
+                // Drop user_edited column since is_user_edited already exists
+                $wpdb->query(
+                    "ALTER TABLE {$table_snippets} DROP COLUMN `user_edited`"
+                );
+                echo "<p>Dropped redundant user_edited column in {$table_snippets}</p>";
             }
         } else {
             echo "<p>user_edited column doesn't exist in {$table_snippets}</p>";
