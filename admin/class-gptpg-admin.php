@@ -40,11 +40,38 @@ class GPTPG_Admin {
 	 * Register the settings page.
 	 */
 	public static function register_settings_page() {
-		add_options_page(
+		// Define the menu slugs
+		$main_menu_slug = 'gptpg-dashboard'; // Changed this to be unique
+		$settings_slug = 'gptpg-settings';
+		
+		// Add main menu item
+		add_menu_page(
 			__( 'GPT Prompt Generator', 'gpt-prompt-generator' ),
 			__( 'GPT Prompt Generator', 'gpt-prompt-generator' ),
 			'manage_options',
-			'gptpg-settings',
+			$main_menu_slug, // This is the slug for the main menu
+			array( __CLASS__, 'render_dashboard_page' ),
+			'dashicons-format-chat',
+			30
+		);
+		
+		// Add a Dashboard submenu that points to the same page as the main menu
+		add_submenu_page(
+			$main_menu_slug,
+			__( 'Dashboard', 'gpt-prompt-generator' ),
+			__( 'Dashboard', 'gpt-prompt-generator' ),
+			'manage_options',
+			$main_menu_slug,
+			array( __CLASS__, 'render_dashboard_page' )
+		);
+		
+		// Add Settings submenu
+		add_submenu_page(
+			$main_menu_slug,
+			__( 'Settings', 'gpt-prompt-generator' ),
+			__( 'Settings', 'gpt-prompt-generator' ),
+			'manage_options',
+			$settings_slug,
 			array( __CLASS__, 'render_settings_page' )
 		);
 	}
@@ -200,6 +227,37 @@ class GPTPG_Admin {
 		}
 
 		return $value;
+	}
+
+	/**
+	 * Render the dashboard page.
+	 */
+	public static function render_dashboard_page() {
+		// Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		?>
+		<div class="wrap">
+			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+			<p><?php esc_html_e( 'Welcome to the GPT Prompt Generator dashboard.', 'gpt-prompt-generator' ); ?></p>
+			
+			<div class="gptpg-dashboard-container">
+				<div class="gptpg-dashboard-section">
+					<h2><?php esc_html_e( 'Quick Links', 'gpt-prompt-generator' ); ?></h2>
+					<ul>
+						<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=gptpg-settings' ) ); ?>"><?php esc_html_e( 'Settings', 'gpt-prompt-generator' ); ?></a></li>
+					</ul>
+				</div>
+				
+				<div class="gptpg-dashboard-section">
+					<h2><?php esc_html_e( 'Getting Started', 'gpt-prompt-generator' ); ?></h2>
+					<p><?php esc_html_e( 'To use the prompt generator form, add the following shortcode to any page:', 'gpt-prompt-generator' ); ?></p>
+					<code>[gptpg_prompt_form]</code>
+				</div>
+			</div>
+		</div>
+		<?php
 	}
 
 	/**
@@ -374,7 +432,7 @@ class GPTPG_Admin {
 	 * @return array Modified plugin action links.
 	 */
 	public static function add_settings_link( $links ) {
-		$settings_link = '<a href="' . admin_url( 'options-general.php?page=gptpg-settings' ) . '">' . __( 'Settings', 'gpt-prompt-generator' ) . '</a>';
+		$settings_link = '<a href="' . admin_url( 'admin.php?page=gptpg-dashboard' ) . '">' . __( 'Settings', 'gpt-prompt-generator' ) . '</a>';
 		array_unshift( $links, $settings_link );
 		return $links;
 	}
