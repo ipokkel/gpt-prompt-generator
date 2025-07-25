@@ -3,7 +3,7 @@
  * Plugin Name: GPT Prompt Generator
  * Plugin URI: https://www.strangerstudios.com/plugins/gpt-prompt-generator/
  * Description: Generate a ChatGPT Prompt for rewriting a Tooltip Recipe Post.
- * Version: 0.0.7
+ * Version: 0.0.8
  * Author: Stranger Studios
  * Author URI: https://www.strangerstudios.com
  * Text Domain: gpt-prompt-generator
