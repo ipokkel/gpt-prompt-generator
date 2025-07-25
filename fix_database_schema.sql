@@ -1,6 +1,15 @@
--- GPT Prompt Generator Plugin - Database Tables Creation Script
--- Run this script to create all required tables for the plugin
+-- Fix Database Schema - Run these commands to update your database
+-- This will drop the old tables and recreate them with the correct post_id structure
 
+-- Drop existing tables (if they exist)
+DROP TABLE IF EXISTS wp_gptpg_session_snippets;
+DROP TABLE IF EXISTS wp_gptpg_session_prompts; 
+DROP TABLE IF EXISTS wp_gptpg_sessions;
+DROP TABLE IF EXISTS wp_gptpg_unique_snippets;
+DROP TABLE IF EXISTS wp_gptpg_unique_prompts;
+DROP TABLE IF EXISTS wp_gptpg_unique_posts;
+
+-- Recreate tables with correct schema
 -- Table for storing unique posts
 CREATE TABLE wp_gptpg_unique_posts (
     post_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -43,4 +52,4 @@ CREATE TABLE wp_gptpg_unique_prompts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Verify tables were created
-SELECT 'Tables created successfully!' as status;
+SELECT 'Database schema updated successfully!' as status;

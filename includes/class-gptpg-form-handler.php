@@ -45,29 +45,7 @@ class GPTPG_Form_Handler {
 		}
 	}
 
-	/**
-	 * Generate a unique session ID.
-	 *
-	 * @return string Unique session ID.
-	 */
-	public static function generate_session_id() {
-		return wp_hash( uniqid( 'gptpg_', true ) . time() );
-	}
-	
-	/**
-	 * Get existing session ID from request or generate a new one
-	 *
-	 * @return string Session ID
-	 */
-	public static function get_or_create_session() {
-		// Check if session ID is provided in the request
-		if ( isset( $_POST['session_id'] ) && ! empty( $_POST['session_id'] ) ) {
-			return sanitize_text_field( wp_unslash( $_POST['session_id'] ) );
-		}
-		
-		// Generate a new session ID if none provided
-		return self::generate_session_id();
-	}
+
 
 	/**
 	 * AJAX handler for fetching a post by URL.
@@ -101,9 +79,6 @@ class GPTPG_Form_Handler {
 			wp_send_json_error( array( 'message' => $post_data->get_error_message() ) );
 		}
 
-		// Generate a new session ID
-		$session_id = self::generate_session_id();
-
 		// Convert HTML to Markdown
 		if ( ! class_exists( 'League\HTMLToMarkdown\HtmlConverter' ) ) {
 			require_once GPTPG_PLUGIN_DIR . 'vendor/autoload.php';
@@ -115,7 +90,6 @@ class GPTPG_Form_Handler {
 		// Store post data in database
 		$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
 		$store_result = GPTPG_Database::store_post(
-			$session_id,
 			$post_url,
 			$post_data['title'],
 			$post_data['content'],
@@ -123,8 +97,7 @@ class GPTPG_Form_Handler {
 			$expiry_time
 		);
 		
-		// Also store a lightweight transient token for faster validation
-		set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
+
 
 		// Check if we got a valid result array
 		if ( ! isset( $store_result['post_id'] ) ) {
@@ -149,7 +122,6 @@ class GPTPG_Form_Handler {
 			$snippet_type = GPTPG_GitHub_Handler::get_github_url_type( $link );
 			if ( $snippet_type ) {
 				$snippet_result = GPTPG_Database::store_snippet(
-					$session_id,
 					$post_id,
 					$link,
 					$snippet_type
@@ -166,7 +138,7 @@ class GPTPG_Form_Handler {
 
 		// Prepare response data
 		$response_data = array(
-			'session_id'   => $session_id,
+			'post_id'      => $post_id,
 			'post_title'   => $post_data['title'],
 			'github_links' => $github_links,
 			'is_duplicate_post' => $is_duplicate,
@@ -252,14 +224,11 @@ class GPTPG_Form_Handler {
 		$post_url = esc_url_raw( wp_unslash( $_POST['post_url'] ) );
 		$post_content = wp_kses_post( wp_unslash( $_POST['post_content'] ) );
 
-		// Get or create a session
-		$session_id = self::get_or_create_session();
-
 		// Extract title from markdown content
 		$post_title = self::extract_title_from_markdown( $post_content );
 		
-		// Store the markdown content in the database - parameters: session_id, post_url, post_title, post_content, post_content_markdown
-		$post_store_result = GPTPG_Database::store_post( $session_id, $post_url, $post_title, '', $post_content );
+		// Store the markdown content in the database
+		$post_store_result = GPTPG_Database::store_post( $post_url, $post_title, '', $post_content );
 		
 		if ( ! $post_store_result || is_wp_error( $post_store_result ) ) {
 			wp_send_json_error( array( 'message' => __( 'Failed to store markdown content.', 'gpt-prompt-generator' ) ) );
@@ -270,7 +239,7 @@ class GPTPG_Form_Handler {
 		
 		// Check if this is a duplicate post and get existing snippets
 		$response_data = array(
-			'session_id' => $session_id,
+			'post_id' => $post_store_result['post_id'],
 			'github_links' => $github_links
 		);
 		
@@ -307,29 +276,16 @@ class GPTPG_Form_Handler {
 		// Success response
 		wp_send_json_success($response_data);
 
-		// Store post data in database
-		$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
-		$post_id = GPTPG_Database::store_post(
-			$session_id,
-			$post_url,
-			$post_title,
-			'', // Empty original content since we don't fetch it
-			$post_content, // Markdown content provided by user
-			time() + $expiry_time
-		);
-
-		// Check if post was stored successfully
-		if ( ! $post_id ) {
-			wp_send_json_error( array( 'message' => __( 'Failed to store post data.', 'gpt-prompt-generator' ) ) );
-		}
+		// Note: Post data is already available since we retrieved it by post_id
+		// No need to store again - we're just processing the markdown content
 
 		// Extract GitHub/Gist links from markdown content (optional in new workflow)
 		$github_links = array(); // Empty array as we're not extracting links automatically now
 
 		// Return response
 		wp_send_json_success( array(
-			'session_id' => $session_id,
-			'post_title' => $post_title,
+			'post_id' => $post_id,
+			'post_title' => $post_data->post_title,
 			'github_links' => $github_links
 		) );
 	}
@@ -350,19 +306,20 @@ class GPTPG_Form_Handler {
 
 		// Note: Login restriction removed - plugin now accessible to all users
 
-		// Check if session ID was provided
-		if ( ! isset( $_POST['session_id'] ) || empty( $_POST['session_id'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid session.', 'gpt-prompt-generator' ) ) );
+		// Check if post ID was provided
+		if ( ! isset( $_POST['post_id'] ) || empty( $_POST['post_id'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid post ID.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Get session ID
-		$session_id = sanitize_text_field( wp_unslash( $_POST['session_id'] ) );
+		// Get post ID
+		$post_id = intval( $_POST['post_id'] );
 
 		// Get post data from the database
-		$post_data = GPTPG_Database::get_post_by_session( $session_id );
-		if ( ! $post_data ) {
-			wp_send_json_error( array( 'message' => __( 'Session expired or invalid.', 'gpt-prompt-generator' ) ) );
+		$post_data_result = GPTPG_Database::get_post_data_by_id( $post_id );
+		if ( ! $post_data_result || isset( $post_data_result['error'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Post not found or expired.', 'gpt-prompt-generator' ) ) );
 		}
+		$post_data = (object) $post_data_result;
 
 		// Check if code snippets were provided
 		if ( ! isset( $_POST['snippets'] ) || ! is_array( $_POST['snippets'] ) ) {
@@ -372,9 +329,9 @@ class GPTPG_Form_Handler {
 		// Get the snippets array
 		$snippets = wp_unslash( $_POST['snippets'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		// Get existing snippets from the database
-		$existing_snippets = GPTPG_Database::get_snippets_by_session( $session_id );
-		$existing_ids      = wp_list_pluck( $existing_snippets, 'id' );
+		// Get existing snippets from the database by post_id
+		$existing_snippets = GPTPG_Database::get_snippets_by_post_id( $post_id );
+		$existing_ids      = wp_list_pluck( $existing_snippets, 'snippet_id' );
 
 		// Process snippets
 		$processed_ids = array();
@@ -419,14 +376,13 @@ class GPTPG_Form_Handler {
 			// Process based on whether it's an existing snippet or a new one
 			if ( $snippet_id && in_array( $snippet_id, $existing_ids, true ) ) {
 				// Update existing snippet
-				GPTPG_Database::update_snippet( $snippet_id, $session_id, $snippet_url, $code_content );
+				GPTPG_Database::update_snippet( $snippet_id, $snippet_url, $code_content );
 				$processed_ids[] = $snippet_id;
 			} else {
 				// Add new snippet
 				$post_id = isset($post_data->post_id) ? $post_data->post_id : 0; // Add property check to prevent PHP warning
-				error_log("GPTPG DEBUG: About to store snippet - session_id={$session_id}, post_id={$post_id}, url={$snippet_url}, type={$url_type}");
+				error_log("GPTPG DEBUG: About to store snippet - post_id={$post_id}, url={$snippet_url}, type={$url_type}");
 				$snippet_result = GPTPG_Database::store_snippet(
-					$session_id,
 					$post_id, // Using post_id from normalized schema with safety check
 					$snippet_url,
 					$url_type,
@@ -455,13 +411,13 @@ class GPTPG_Form_Handler {
 		}
 
 		// Get updated snippets from the database
-		$updated_snippets = GPTPG_Database::get_snippets_by_session( $session_id );
+		$updated_snippets = GPTPG_Database::get_snippets_by_post_id( $post_id );
 
 		// Prepare snippets for JSON response
 		$snippet_data = array();
 		foreach ( $updated_snippets as $snippet ) {
 			$snippet_data[] = array(
-				'id'         => isset($snippet->id) ? $snippet->id : 0,
+				'id'         => isset($snippet->snippet_id) ? $snippet->snippet_id : 0,
 				'url'        => isset($snippet->snippet_url) ? $snippet->snippet_url : '',
 				'type'       => isset($snippet->snippet_type) ? $snippet->snippet_type : '',
 				'has_content' => isset($snippet->snippet_content) ? !empty($snippet->snippet_content) : false,
@@ -491,22 +447,23 @@ class GPTPG_Form_Handler {
 
 		// Note: Login restriction removed - plugin now accessible to all users
 
-		// Check if session ID was provided
-		if ( ! isset( $_POST['session_id'] ) || empty( $_POST['session_id'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid session.', 'gpt-prompt-generator' ) ) );
+		// Check if post ID was provided
+		if ( ! isset( $_POST['post_id'] ) || empty( $_POST['post_id'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid post ID.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Get session ID
-		$session_id = sanitize_text_field( wp_unslash( $_POST['session_id'] ) );
+		// Get post ID
+		$post_id = intval( $_POST['post_id'] );
 
 		// Get post data from the database
-		$post_data = GPTPG_Database::get_post_by_session( $session_id );
-		if ( ! $post_data ) {
-			wp_send_json_error( array( 'message' => __( 'Session expired or invalid.', 'gpt-prompt-generator' ) ) );
+		$post_data_result = GPTPG_Database::get_post_data_by_id( $post_id );
+		if ( ! $post_data_result || isset( $post_data_result['error'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Post not found or expired.', 'gpt-prompt-generator' ) ) );
 		}
+		$post_data = (object) $post_data_result;
 
 		// Get snippets from the database (now optional)
-		$snippets = GPTPG_Database::get_snippets_by_session( $session_id );
+		$snippets = GPTPG_Database::get_snippets_by_post_id( $post_id );
 		// We now allow empty snippets in our new workflow
 		if ( ! is_array( $snippets ) ) {
 			$snippets = array();
@@ -516,7 +473,7 @@ class GPTPG_Form_Handler {
 		$prompt_content = GPTPG_Prompt_Generator::generate_prompt( $post_data, $snippets );
 
 		// Store the generated prompt in the database
-		$prompt_result = GPTPG_Database::store_prompt( $session_id, $post_data->post_id, $prompt_content );
+		$prompt_result = GPTPG_Database::store_prompt( $post_data->post_id, $prompt_content );
 		
 		// Check for duplicate prompt
 		$is_duplicate = isset($prompt_result['is_duplicate']) ? $prompt_result['is_duplicate'] : false;
@@ -1188,90 +1145,7 @@ class GPTPG_Form_Handler {
 		 return $content;
 	}
 
-	/**
-	 * Verify session validity.
-	 * This is a lightweight validation endpoint that checks if a session token is valid
-	 * without requiring the full database session to be valid.
-	 */
-	public static function verify_session() {
-		// Check nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg_form' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
-		}
-		
-		// Check if session ID was provided
-		if ( ! isset( $_POST['session_id'] ) || empty( $_POST['session_id'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid session ID.', 'gpt-prompt-generator' ) ) );
-		}
-		
-		// Get the session ID
-		$session_id = sanitize_text_field( wp_unslash( $_POST['session_id'] ) );
-		
-		// First check if the lightweight transient token exists
-		$token_valid = get_transient( 'gptpg_token_' . $session_id );
-		
-		if ( $token_valid ) {
-			// Token is valid, no need to check the database
-			wp_send_json_success( array( 
-				'valid' => true,
-				'message' => __( 'Session is valid.', 'gpt-prompt-generator' ) 
-			) );
-			return;
-		}
-		
-		// If transient doesn't exist, check the database as fallback if it exists
-		try {
-			// Check if the database tables exist before trying to query them
-			global $wpdb;
-			$table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}gptpg_sessions'") === "{$wpdb->prefix}gptpg_sessions";
-			
-			if ($table_exists) {
-				$post_data = GPTPG_Database::get_post_by_session( $session_id );
-				
-				if ( $post_data && !is_array($post_data) ) {
-					// Session exists in database, create a new transient token
-					$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
-					set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
-					
-					wp_send_json_success( array( 
-						'valid' => true,
-						'message' => __( 'Session validated from database.', 'gpt-prompt-generator' ) 
-					) );
-					return;
-				}
-			} else {
-				// Tables don't exist yet, but we can still use the client-side state
-				// Create a new transient for this session so it can be validated in the future
-				$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
-				set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
-				
-				wp_send_json_success( array( 
-					'valid' => true,
-					'message' => __( 'Session validated (no database tables yet).', 'gpt-prompt-generator' ),
-					'db_status' => 'no_tables'
-				) );
-				return;
-			}
-		} catch (Exception $e) {
-			// Error checking database, but we can still use the client-side state
-			// Create a new transient for this session
-			$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
-			set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
-			
-			wp_send_json_success( array( 
-				'valid' => true,
-				'message' => __( 'Session validated (database error).', 'gpt-prompt-generator' ),
-				'db_status' => 'error'
-			) );
-			return;
-		}
-		
-		// Session is invalid
-		wp_send_json_error( array( 
-			'message' => __( 'Session is no longer valid on the server.', 'gpt-prompt-generator' ),
-			'error_type' => 'session_invalid' 
-		) );
-	}
+
 }
 
 // Initialize the form handler

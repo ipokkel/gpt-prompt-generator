@@ -10,7 +10,7 @@
     // Form state
     let GPTPG_Form = {
         currentStep: 1,
-        sessionId: '',
+        postId: '',
         postUrl: '',
         postTitle: '',
         postContent: '',
@@ -24,7 +24,7 @@
             if (savedState) {
                 try {
                     const state = JSON.parse(savedState);
-                    this.sessionId = state.sessionId || '';
+                    this.postId = state.postId || '';
                     this.postUrl = state.postUrl || '';
                     this.postTitle = state.postTitle || '';
                     this.postContent = state.postContent || '';
@@ -40,14 +40,14 @@
                         $('#gptpg-post-content').val(this.postContent);
                     }
                     
-                    // Show a restore session notice if we have data
-                    if (this.sessionId) {
+                    // Show a restore notice if we have data
+                    if (this.postId) {
                         const notice = $('<div class="gptpg-notice gptpg-info-message"></div>')
-                            .html('You have a saved session. Would you like to restore it?');
+                            .html('You have saved data. Would you like to restore it?');
                         
                         const restoreButton = $('<button>', {
                             'class': 'button button-primary gptpg-restore-btn',
-                            'text': 'Restore Session'
+                            'text': 'Restore Data'
                         }).on('click', function(e) {
                             e.preventDefault();
                             GPTPG_Form.restoreSession();
@@ -144,30 +144,8 @@
                     
                     // Only show restore option if saved within last 24 hours
                     if (now - savedTime < 24 * 60 * 60 * 1000) {
-                        // First verify if the session is still valid on server
-                        if (state.sessionId) {
-                            GPTPG_Form.verifySession(state.sessionId, function(isValid) {
-                                if (isValid) {
-                                    // Session is valid, show restore option
-                                    $('#gptpg-restore-state').show();
-                                    
-                                    $('#gptpg-restore-button').on('click', function(e) {
-                                        e.preventDefault();
-                                        GPTPG_Form.restoreState(state);
-                                    });
-                                    
-                                    $('#gptpg-start-fresh').on('click', function(e) {
-                                        e.preventDefault();
-                                        $('#gptpg-restore-state').hide();
-                                    });
-                                } else {
-                                    // Session is invalid, remove saved state
-                                    console.log('Saved session is no longer valid on server');
-                                    localStorage.removeItem('gptpg_form_state');
-                                }
-                            });
-                        } else {
-                            // No session ID, just show restore option
+                        // Show restore option if we have a post ID
+                        if (state.postId) {
                             $('#gptpg-restore-state').show();
                             
                             $('#gptpg-restore-button').on('click', function(e) {
@@ -188,37 +166,10 @@
             }
         },
         
-        // Verify if a session is still valid on the server
-        verifySession: function(sessionId, callback) {
-            $.ajax({
-                url: gptpg_vars.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'gptpg_verify_session',
-                    nonce: gptpg_vars.nonce,
-                    session_id: sessionId
-                },
-                success: function(response) {
-                    console.log('AJAX: Response success status:', response.success);
-                    if (response.success) {
-                        console.log('Session verified:', response.data.message);
-                        callback(true);
-                    } else {
-                        console.log('Session invalid:', response.data.message);
-                        callback(false);
-                    }
-                },
-                error: function() {
-                    console.error('Error verifying session');
-                    callback(false);
-                }
-            });
-        },
-        
         // Save current form state to localStorage
         saveState: function() {
             const state = {
-                sessionId: this.sessionId,
+                postId: this.postId,
                 postUrl: this.postUrl,
                 postTitle: this.postTitle,
                 postContent: this.postContent,
@@ -246,37 +197,6 @@
                 this.populateSnippets();
                 this.navigateToStep(3);
             }
-            
-            // Verify session is still valid on server
-            this.verifySession();
-        },
-        
-        // Verify session is still valid on server
-        verifySession: function() {
-            if (!this.sessionId) return;
-            
-            $.ajax({
-                url: gptpg_vars.ajaxurl,
-                type: 'POST',
-                data: {
-                    action: 'gptpg_verify_session',
-                    nonce: gptpg_vars.nonce,
-                    session_id: this.sessionId
-                },
-                beforeSend: function() {
-                    GPTPG_Form.showLoading();
-                },
-                complete: function() {
-                    GPTPG_Form.hideLoading();
-                },
-                success: function(response) {
-                    if (!response.success) {
-                        // Session is invalid, show message but keep local data
-                        GPTPG_Form.showWarning($('#gptpg-step-' + GPTPG_Form.currentStep), 
-                            response.data.message + ' Your data has been kept locally, but you\'ll need to resubmit to continue.');
-                    }
-                }
-            });
         },
         
         // Navigate to a specific step
@@ -345,8 +265,8 @@
                     
                     console.log('AJAX: Response success status:', response.success);
                     if (response.success) {
-                        // Store session ID and post title
-                        GPTPG_Form.sessionId = response.data.session_id;
+                        // Store post ID and post title
+                        GPTPG_Form.postId = response.data.post_id;
                         GPTPG_Form.postTitle = response.data.post_title;
                         
                         // Save state to localStorage
@@ -532,8 +452,8 @@
                     
                     console.log('AJAX: Response success status:', response.success);
                     if (response.success) {
-                        // Store session ID for future requests
-                        GPTPG_Form.sessionId = response.data.session_id;
+                        // Store post ID for future requests
+                        GPTPG_Form.postId = response.data.post_id;
                         
                         // Debug: Log the entire response data
                         console.log('GPTPG DEBUG: Step 2 submission response data:', response.data);
@@ -691,7 +611,7 @@
                 data: {
                     action: 'gptpg_process_snippets',
                     nonce: gptpg_vars.nonce,
-                    session_id: this.sessionId,
+                    post_id: this.postId,
                     snippets: snippets
                 },
                 success: function(response) {
@@ -763,7 +683,7 @@
                 data: {
                     action: 'gptpg_generate_prompt',
                     nonce: gptpg_vars.nonce,
-                    session_id: this.sessionId
+                    post_id: this.postId
                 },
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-4'));
@@ -831,7 +751,7 @@
         reset: function() {
             // Reset state
             this.currentStep = 1;
-            this.sessionId = '';
+            this.postId = '';
             this.postTitle = '';
             this.snippets = [];
             this.prompt = '';

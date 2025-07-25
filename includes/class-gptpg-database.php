@@ -45,60 +45,23 @@ class GPTPG_Database {
 	public static function check_version() {
 		$current_db_version = self::get_db_version();
 		
-		// If versions don't match, perform necessary upgrades
+		// If versions don't match, create tables
 		if ( $current_db_version !== GPTPG_VERSION ) {
-			// Create or update tables
 			self::create_tables();
-			
-			// Perform version-specific upgrades
-			if ( version_compare( $current_db_version, '0.0.4', '<' ) ) {
-				self::upgrade_0_0_4();
-			}
-			
-			if ( version_compare( $current_db_version, '0.0.5', '<' ) ) {
-				self::upgrade_0_0_5();
-			}
-			
-			// Update the database version
 			update_option( 'gptpg_db_version', GPTPG_VERSION );
 		}
 	}
-	
+
 	/**
-	 * Upgrade database to version 0.0.4
-	 * - Renames user_edited column to is_user_edited in gptpg_code_snippets table
+	 * Create database tables.
 	 */
-	private static function upgrade_0_0_4() {
+	public static function create_tables() {
 		global $wpdb;
-		
-		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
-		
-		// Check if the column exists before attempting to rename
-		$column_exists = $wpdb->get_results(
-			"SHOW COLUMNS FROM {$table_snippets} LIKE 'user_edited'"
-		);
-		
-		if ( !empty( $column_exists ) ) {
-			// Rename column from user_edited to is_user_edited
-			$wpdb->query(
-				"ALTER TABLE {$table_snippets} CHANGE `user_edited` `is_user_edited` tinyint(1) NOT NULL DEFAULT 0"
-			);
-		}
-	}
-	
-	/**
-	 * Upgrade database to version 0.0.5
-	 * - Implements normalized database schema
-	 * - Creates new tables for normalized data structure
-	 * - Migrates existing data to new tables
-	 */
-	private static function upgrade_0_0_5() {
-		global $wpdb;
-		
-		// First, create the normalized tables
+
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
 		$charset_collate = $wpdb->get_charset_collate();
-		
+
 		// Table for storing unique posts
 		$table_unique_posts = $wpdb->prefix . 'gptpg_unique_posts';
 		$sql_unique_posts = "CREATE TABLE $table_unique_posts (
@@ -114,217 +77,42 @@ class GPTPG_Database {
 			UNIQUE KEY post_url (post_url(191))
 		) $charset_collate;";
 		dbDelta( $sql_unique_posts );
-		
-		// Table for storing unique code snippets
+
+		// Table for storing unique code snippets associated with posts
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
 		$sql_unique_snippets = "CREATE TABLE $table_unique_snippets (
 			snippet_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			post_id bigint(20) unsigned NOT NULL,
 			snippet_url varchar(2083) NOT NULL,
 			snippet_type varchar(50) NOT NULL,
 			snippet_content longtext,
+			is_user_edited tinyint(1) NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY (snippet_id),
-			UNIQUE KEY snippet_url (snippet_url(191))
+			UNIQUE KEY snippet_url (snippet_url(191)),
+			KEY post_id (post_id),
+			FOREIGN KEY (post_id) REFERENCES $table_unique_posts(post_id) ON DELETE CASCADE
 		) $charset_collate;";
 		dbDelta( $sql_unique_snippets );
-		
+
 		// Table for storing unique prompts
 		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
 		$sql_unique_prompts = "CREATE TABLE $table_unique_prompts (
 			prompt_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			prompt_content longtext NOT NULL,
+			prompt_hash varchar(32) GENERATED ALWAYS AS (MD5(prompt_content)) STORED,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY (prompt_id),
-			UNIQUE KEY prompt_hash (MD5(prompt_content))
+			UNIQUE KEY prompt_hash (prompt_hash)
 		) $charset_collate;";
 		dbDelta( $sql_unique_prompts );
-		
-		// Table for sessions/processes that link everything together
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
-		$sql_sessions = "CREATE TABLE $table_sessions (
-			session_id varchar(255) NOT NULL,
-			user_id bigint(20) unsigned DEFAULT NULL,
-			post_id bigint(20) unsigned DEFAULT NULL,
-			prompt_id bigint(20) unsigned DEFAULT NULL,
-			created_at datetime NOT NULL,
-			status varchar(50) DEFAULT 'pending',
-			PRIMARY KEY (session_id),
-			KEY user_id (user_id),
-			KEY post_id (post_id),
-			KEY prompt_id (prompt_id)
-		) $charset_collate;";
-		dbDelta( $sql_sessions );
-		
-		// Table for session to snippet mappings (many-to-many)
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
-		$sql_session_snippets = "CREATE TABLE $table_session_snippets (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			session_id varchar(255) NOT NULL,
-			snippet_id bigint(20) unsigned NOT NULL,
-			is_user_edited tinyint(1) NOT NULL DEFAULT 0,
-			created_at datetime NOT NULL,
-			PRIMARY KEY (id),
-			UNIQUE KEY session_snippet (session_id, snippet_id),
-			KEY session_id (session_id),
-			KEY snippet_id (snippet_id)
-		) $charset_collate;";
-		dbDelta( $sql_session_snippets );
-		
-		// Now migrate existing data to the new tables
-		self::migrate_data_to_normalized_schema();
-	}
 
-	/**
-	 * Migrate existing data to the normalized schema.
-	 */
-	private static function migrate_data_to_normalized_schema() {
-		global $wpdb;
-		
-		// Define our table names
-		$table_posts = $wpdb->prefix . 'gptpg_posts';
-		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
-		$table_prompts = $wpdb->prefix . 'gptpg_prompts';
-		
-		$table_unique_posts = $wpdb->prefix . 'gptpg_unique_posts';
-		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
-		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
-		
-		// Step 1: Migrate unique posts
-		$wpdb->query("INSERT IGNORE INTO $table_unique_posts 
-			(post_url, post_title, post_content, post_content_markdown, created_at, updated_at, expires_at)
-			SELECT DISTINCT 
-				post_url, 
-				post_title, 
-				post_content, 
-				post_content_markdown, 
-				created_at, 
-				created_at as updated_at,
-				expires_at
-			FROM $table_posts");
-		
-		// Step 2: Migrate unique snippets
-		$wpdb->query("INSERT IGNORE INTO $table_unique_snippets 
-			(snippet_url, snippet_type, snippet_content, created_at, updated_at)
-			SELECT DISTINCT 
-				snippet_url, 
-				snippet_type, 
-				snippet_content,
-				created_at,
-				created_at as updated_at
-			FROM $table_snippets");
-		
-		// Step 3: Migrate unique prompts
-		$wpdb->query("INSERT IGNORE INTO $table_unique_prompts 
-			(prompt_content, created_at, updated_at)
-			SELECT DISTINCT 
-				prompt_content,
-				created_at,
-				created_at as updated_at
-			FROM $table_prompts");
-		
-		// Step 4: Create sessions and link them to posts and prompts
-		$wpdb->query("INSERT INTO $table_sessions 
-			(session_id, user_id, post_id, prompt_id, created_at, status)
-			SELECT DISTINCT
-				p.session_id,
-				p.user_id,
-				up.post_id,
-				upr.prompt_id,
-				p.created_at,
-				'complete' as status
-			FROM $table_posts p
-			JOIN $table_unique_posts up ON p.post_url = up.post_url
-			LEFT JOIN $table_prompts pr ON p.session_id = pr.session_id
-			LEFT JOIN $table_unique_prompts upr ON pr.prompt_content = upr.prompt_content");
-		
-		// Step 5: Create session-snippet mappings
-		$wpdb->query("INSERT INTO $table_session_snippets 
-			(session_id, snippet_id, is_user_edited, created_at)
-			SELECT DISTINCT
-				s.session_id,
-				us.snippet_id,
-				cs.is_user_edited,
-				cs.created_at
-			FROM $table_snippets cs
-			JOIN $table_unique_snippets us ON cs.snippet_url = us.snippet_url
-			JOIN $table_sessions s ON cs.session_id = s.session_id");
-		
-		// Log successful migration
-		error_log('GPTPG: Data successfully migrated to normalized schema.');
-	}
-
-	/**
-	 * Create database tables.
-	 */
-	public static function create_tables() {
-		global $wpdb;
-
-		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-		$charset_collate = $wpdb->get_charset_collate();
-
-		// Table for storing fetched posts.
-		$table_posts = $wpdb->prefix . 'gptpg_posts';
-		$sql_posts = "CREATE TABLE $table_posts (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) unsigned DEFAULT NULL,
-			session_id varchar(255) NOT NULL,
-			post_url varchar(2083) NOT NULL,
-			post_title text NOT NULL,
-			post_content longtext NOT NULL,
-			post_content_markdown longtext NOT NULL,
-			created_at datetime NOT NULL,
-			expires_at datetime NOT NULL,
-			PRIMARY KEY (id),
-			KEY session_id (session_id),
-			KEY expires_at (expires_at),
-			KEY user_id (user_id)
-		) $charset_collate;";
-		dbDelta( $sql_posts );
-
-		// Table for storing code snippets.
-		$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
-		$sql_snippets = "CREATE TABLE $table_snippets (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) unsigned DEFAULT NULL,
-			session_id varchar(255) NOT NULL,
-			post_id bigint(20) unsigned NOT NULL,
-			snippet_url varchar(2083) NOT NULL,
-			snippet_type varchar(50) NOT NULL,
-			snippet_content longtext,
-			is_user_edited tinyint(1) NOT NULL DEFAULT 0,
-			created_at datetime NOT NULL,
-			PRIMARY KEY (id),
-			KEY session_id (session_id),
-			KEY post_id (post_id),
-			KEY user_id (user_id)
-		) $charset_collate;";
-		dbDelta( $sql_snippets );
-
-		// Table for storing generated prompts.
-		$table_prompts = $wpdb->prefix . 'gptpg_prompts';
-		$sql_prompts = "CREATE TABLE $table_prompts (
-			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			user_id bigint(20) unsigned DEFAULT NULL,
-			session_id varchar(255) NOT NULL,
-			post_id bigint(20) unsigned NOT NULL,
-			prompt_content longtext NOT NULL,
-			created_at datetime NOT NULL,
-			PRIMARY KEY (id),
-			KEY session_id (session_id),
-			KEY post_id (post_id),
-			KEY user_id (user_id)
-		) $charset_collate;";
-		dbDelta( $sql_prompts );
-
-		// Update database version.
+		// Update database version
 		update_option( 'gptpg_db_version', GPTPG_VERSION );
-		
-		// Schedule cleanup of expired sessions.
+
+		// Schedule cleanup of expired data
 		if ( ! wp_next_scheduled( 'gptpg_cleanup_expired_data' ) ) {
 			wp_schedule_event( time(), 'daily', 'gptpg_cleanup_expired_data' );
 		}
@@ -336,30 +124,24 @@ class GPTPG_Database {
 	public static function cleanup_expired_data() {
 		global $wpdb;
 		
-		// Get current time.
+		// Get current time
 		$current_time = current_time( 'mysql', true );
 		
-		// Delete expired posts and related data.
-		$table_posts = $wpdb->prefix . 'gptpg_posts';
+		// Delete expired posts and related data
+		$table_unique_posts = $wpdb->prefix . 'gptpg_unique_posts';
 		$expired_posts = $wpdb->get_col(
 			$wpdb->prepare(
-				"SELECT id FROM $table_posts WHERE expires_at < %s",
+				"SELECT post_id FROM $table_unique_posts WHERE expires_at < %s",
 				$current_time
 			)
 		);
 		
 		if ( ! empty( $expired_posts ) ) {
-			$table_snippets = $wpdb->prefix . 'gptpg_code_snippets';
-			$table_prompts = $wpdb->prefix . 'gptpg_prompts';
-			
-			// Delete related snippets.
-			$wpdb->query( "DELETE FROM $table_snippets WHERE post_id IN (" . implode( ',', $expired_posts ) . ")" );
-			
-			// Delete related prompts.
-			$wpdb->query( "DELETE FROM $table_prompts WHERE post_id IN (" . implode( ',', $expired_posts ) . ")" );
-			
-			// Delete expired posts.
-			$wpdb->query( "DELETE FROM $table_posts WHERE id IN (" . implode( ',', $expired_posts ) . ")" );
+			// Note: Snippets will be auto-deleted due to FOREIGN KEY CASCADE
+			// Delete expired posts
+			$wpdb->query( 
+				"DELETE FROM $table_unique_posts WHERE post_id IN (" . implode( ',', array_map( 'intval', $expired_posts ) ) . ")"
+			);
 		}
 	}
 
@@ -393,13 +175,7 @@ class GPTPG_Database {
 		global $wpdb;
 		$table_unique_posts = $wpdb->prefix . 'gptpg_unique_posts';
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
 		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
-		$table_session_prompts = $wpdb->prefix . 'gptpg_session_prompts';
-		
-		// Debug log
-		$debug = array('post_id' => $post_id);
 		
 		// Get the post details
 		$post_data = $wpdb->get_row(
@@ -414,18 +190,6 @@ class GPTPG_Database {
 			return array('error' => 'Post not found');
 		}
 		
-		// Get all session IDs for this post, sorted by most recent first
-		$sessions = $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT session_id, created_at FROM $table_sessions WHERE post_id = %d ORDER BY created_at DESC",
-				$post_id
-			),
-			ARRAY_A
-		);
-		
-		// Debug log
-		$debug['sessions_found'] = count($sessions);
-		
 		// Initialize result array
 		$result = array(
 			'post_id' => $post_id,
@@ -437,124 +201,45 @@ class GPTPG_Database {
 			'snippets' => array(),
 			'has_prompt' => false,
 			'prompt' => '',
-			'debug' => $debug,
 		);
 		
-		// If we have sessions, try to get snippets and prompts from all sessions
-		if (!empty($sessions)) {
-			// Get all session IDs for IN clause
-			$session_ids = array_map(function($session) { return $session['session_id']; }, $sessions);
-			
-			// Format session IDs for SQL IN clause
-			$session_ids_placeholders = implode(',', array_fill(0, count($session_ids), '%s'));
-			
-			// Get snippets associated with any session for this post
-			$query = $wpdb->prepare(
-				"SELECT DISTINCT s.* FROM $table_unique_snippets s 
-				JOIN $table_session_snippets ss ON s.snippet_id = ss.snippet_id 
-				WHERE ss.session_id IN ($session_ids_placeholders)",
-				...$session_ids
-			);
-			
-			$debug['snippets_query'] = $query;
-			
-			$snippets = $wpdb->get_results($query, ARRAY_A);
-			$debug['snippets_found'] = $snippets ? count($snippets) : 0;
-			
-			if ($snippets && count($snippets) > 0) {
-				$result['has_snippets'] = true;
-				$result['snippets'] = array_map(function($snippet) {
-					return array(
-						'id' => $snippet['snippet_id'],
-						'url' => $snippet['snippet_url'],
-						'type' => $snippet['snippet_type'],
-						'content' => $snippet['snippet_content']
-					);
-				}, $snippets);
-			}
-			
-			// Check all session_prompts for any association
-			$prompt_check_query = $wpdb->prepare(
-				"SELECT COUNT(*) FROM $table_session_prompts WHERE session_id IN ($session_ids_placeholders)",
-				...$session_ids
-			);
-			$debug['prompt_associations_count'] = $wpdb->get_var($prompt_check_query);
-			
-			// Get prompt associated with any session for this post
-			$query = $wpdb->prepare(
-				"SELECT DISTINCT p.* FROM $table_unique_prompts p 
-				JOIN $table_session_prompts sp ON p.prompt_id = sp.prompt_id 
-				WHERE sp.session_id IN ($session_ids_placeholders) LIMIT 1",
-				...$session_ids
-			);
-			
-			$debug['prompt_query'] = $query;
-			
-			$prompt_data = $wpdb->get_row($query, ARRAY_A);
-			$debug['prompt_found'] = !empty($prompt_data);
-			
-			// The direct post ID lookup was removed as prompt_post_id column doesn't exist in schema
-			$direct_prompt_data = null;
-			$debug['direct_prompt_query'] = 'Skipped - prompt_post_id column not in schema';
-			$debug['direct_prompt_found'] = false;
-			
-			if ($prompt_data) {
-				$result['has_prompt'] = true;
-				$result['prompt'] = $prompt_data['prompt_content'];
-				$debug['prompt_source'] = 'session_linked';
-			} elseif ($direct_prompt_data) {
-				// If we found a prompt directly linked to the post ID
-				$result['has_prompt'] = true;
-				$result['prompt'] = $direct_prompt_data['prompt_content'];
-				$debug['prompt_source'] = 'direct_post_linked';
-			}
-		}
-		
-		// Additional debugging for prompts
-		// 1. Check if any prompts exist in the system
-		$all_prompts_count = $wpdb->get_var( "SELECT COUNT(*) FROM $table_unique_prompts" );
-		$debug['all_prompts_count'] = $all_prompts_count;
-		
-		// 2. Show a sample prompt if any exist (helpful to understand data structure)
-		if ( $all_prompts_count > 0 ) {
-			$sample_prompt = $wpdb->get_row( "SELECT * FROM $table_unique_prompts LIMIT 1", ARRAY_A );
-			if ( $sample_prompt ) {
-				$debug['sample_prompt_id'] = $sample_prompt['prompt_id'];
-				$debug['sample_prompt_has_post_id'] = isset( $sample_prompt['prompt_post_id'] ) ? 'yes' : 'no';
-				
-				// Check if column exists in table
-				$check_column = $wpdb->get_results( "SHOW COLUMNS FROM $table_unique_prompts LIKE 'prompt_post_id'", ARRAY_A );
-				$debug['prompt_post_id_column_exists'] = !empty( $check_column ) ? 'yes' : 'no';
-			}
-		}
-		
-		// 3. Search for prompts by post title as a last resort
-		$post_title = $post_data['post_title'];
-		$like_title = '%' . $wpdb->esc_like( $post_title ) . '%';
-		$prompts_with_title = $wpdb->get_results( 
-			$wpdb->prepare( "SELECT prompt_id FROM $table_unique_prompts WHERE prompt_content LIKE %s LIMIT 5", $like_title ),
+		// Get snippets directly associated with this post
+		$snippets = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM $table_unique_snippets WHERE post_id = %d ORDER BY created_at DESC",
+				$post_id
+			),
 			ARRAY_A
 		);
-		$debug['prompts_with_title_count'] = count( $prompts_with_title );
-		$debug['prompts_with_title_ids'] = array_column( $prompts_with_title, 'prompt_id' );
 		
-		// If we found prompts by title search, use the first one
-		if ( !empty( $prompts_with_title ) ) {
-			$title_prompt_id = $prompts_with_title[0]['prompt_id'];
-			$title_prompt = $wpdb->get_row(
-				$wpdb->prepare( "SELECT * FROM $table_unique_prompts WHERE prompt_id = %d", $title_prompt_id ),
-				ARRAY_A
-			);
-			
-			if ( $title_prompt ) {
-				$result['has_prompt'] = true;
-				$result['prompt'] = $title_prompt['prompt_content'];
-				$debug['prompt_source'] = 'title_search';
-			}
+		if ($snippets && count($snippets) > 0) {
+			$result['has_snippets'] = true;
+			$result['snippets'] = array_map(function($snippet) {
+				return array(
+					'id' => $snippet['snippet_id'],
+					'url' => $snippet['snippet_url'],
+					'type' => $snippet['snippet_type'],
+					'content' => $snippet['snippet_content'],
+					'is_user_edited' => $snippet['is_user_edited']
+				);
+			}, $snippets);
 		}
 		
-		// Add final debug info
-		$result['debug'] = $debug;
+		// Search for prompts by post title (since we don't store direct post-prompt association)
+		$post_title = $post_data['post_title'];
+		$like_title = '%' . $wpdb->esc_like( $post_title ) . '%';
+		$prompt_data = $wpdb->get_row(
+			$wpdb->prepare( 
+				"SELECT * FROM $table_unique_prompts WHERE prompt_content LIKE %s ORDER BY created_at DESC LIMIT 1", 
+				$like_title 
+			),
+			ARRAY_A
+		);
+		
+		if ( $prompt_data ) {
+			$result['has_prompt'] = true;
+			$result['prompt'] = $prompt_data['prompt_content'];
+		}
 		
 		return $result;
 	}
@@ -562,7 +247,6 @@ class GPTPG_Database {
 	/**
 	 * Store fetched post data.
 	 *
-	 * @param string $session_id    Session ID.
 	 * @param string $post_url      URL of the fetched post.
 	 * @param string $post_title    Title of the fetched post.
 	 * @param string $post_content  HTML content of the fetched post.
@@ -571,14 +255,11 @@ class GPTPG_Database {
 	 * 
 	 * @return array Array with post_id and is_duplicate flag.
 	 */
-	public static function store_post( $session_id, $post_url, $post_title, $post_content, $post_content_markdown, $expires_in = 3600 ) {
+	public static function store_post( $post_url, $post_title, $post_content, $post_content_markdown, $expires_in = 3600 ) {
 		global $wpdb;
 		
 		$table_unique_posts = $wpdb->prefix . 'gptpg_unique_posts';
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
 		
-		// Get current user ID if logged in
-		$current_user_id = get_current_user_id();
 		$current_time = current_time( 'mysql', true );
 		$expires_time = gmdate( 'Y-m-d H:i:s', time() + $expires_in );
 		
@@ -623,40 +304,6 @@ class GPTPG_Database {
 			$post_id = $wpdb->insert_id;
 		}
 		
-		// Now create or update the session record
-		$session_exists = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM $table_sessions WHERE session_id = %s",
-				$session_id
-			)
-		);
-		
-		if ( $session_exists ) {
-			// Update existing session
-			$wpdb->update(
-				$table_sessions,
-				array(
-					'post_id' => $post_id,
-				),
-				array( 'session_id' => $session_id ),
-				array( '%d' ),
-				array( '%s' )
-			);
-		} else {
-			// Create new session
-			$wpdb->insert(
-				$table_sessions,
-				array(
-					'session_id' => $session_id,
-					'user_id' => $current_user_id ? $current_user_id : NULL,
-					'post_id' => $post_id,
-					'created_at' => $current_time,
-					'status' => 'pending',
-				),
-				array( '%s', '%d', '%d', '%s', '%s' )
-			);
-		}
-		
 		return array(
 			'post_id' => $post_id,
 			'is_duplicate' => $is_duplicate
@@ -686,7 +333,6 @@ class GPTPG_Database {
 	/**
 	 * Store code snippet.
 	 *
-	 * @param string $session_id      Session ID.
 	 * @param int    $post_id         Post ID.
 	 * @param string $snippet_url     URL of the code snippet.
 	 * @param string $snippet_type    Type of snippet (github, gist, raw).
@@ -695,14 +341,11 @@ class GPTPG_Database {
 	 * 
 	 * @return array Array with snippet_id and is_duplicate flag.
 	 */
-	public static function store_snippet( $session_id, $post_id, $snippet_url, $snippet_type, $snippet_content = '', $is_user_edited = false ) {
+	public static function store_snippet( $post_id, $snippet_url, $snippet_type, $snippet_content = '', $is_user_edited = false ) {
 		global $wpdb;
 		
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
 		
-		// Get current user ID if logged in
-		$current_user_id = get_current_user_id();
 		$current_time = current_time( 'mysql', true );
 		
 		// Check if snippet already exists by URL
@@ -716,10 +359,11 @@ class GPTPG_Database {
 					$table_unique_snippets,
 					array(
 						'snippet_content' => $snippet_content,
+						'is_user_edited' => $is_user_edited ? 1 : 0,
 						'updated_at' => $current_time,
 					),
 					array( 'snippet_id' => $existing_snippet_id ),
-					array( '%s', '%s' ),
+					array( '%s', '%d', '%s' ),
 					array( '%d' )
 				);
 			}
@@ -727,58 +371,22 @@ class GPTPG_Database {
 			$snippet_id = $existing_snippet_id;
 			$is_duplicate = true;
 		} else {
-			// Create new snippet
+			// Create new snippet with direct post_id association
 			$wpdb->insert(
 				$table_unique_snippets,
 				array(
+					'post_id' => $post_id,
 					'snippet_url' => $snippet_url,
 					'snippet_type' => $snippet_type,
 					'snippet_content' => $snippet_content,
+					'is_user_edited' => $is_user_edited ? 1 : 0,
 					'created_at' => $current_time,
 					'updated_at' => $current_time,
 				),
-				array( '%s', '%s', '%s', '%s', '%s' )
+				array( '%d', '%s', '%s', '%s', '%d', '%s', '%s' )
 			);
 			
 			$snippet_id = $wpdb->insert_id;
-		}
-		
-		// Now create or update the session-snippet mapping
-		$mapping_exists = $wpdb->get_var(
-			$wpdb->prepare(
-				"SELECT COUNT(*) FROM $table_session_snippets WHERE session_id = %s AND snippet_id = %d",
-				$session_id, $snippet_id
-			)
-		);
-		
-		if ( $mapping_exists ) {
-			// Update existing mapping if needed
-			if ( $is_user_edited ) {
-				$wpdb->update(
-					$table_session_snippets,
-					array(
-						'is_user_edited' => 1,
-					),
-					array( 
-						'session_id' => $session_id,
-						'snippet_id' => $snippet_id
-					),
-					array( '%d' ),
-					array( '%s', '%d' )
-				);
-			}
-		} else {
-			// Create new mapping
-			$wpdb->insert(
-				$table_session_snippets,
-				array(
-					'session_id' => $session_id,
-					'snippet_id' => $snippet_id,
-					'is_user_edited' => $is_user_edited ? 1 : 0,
-					'created_at' => $current_time,
-				),
-				array( '%s', '%d', '%d', '%s' )
-			);
 		}
 		
 		return array(
@@ -808,22 +416,18 @@ class GPTPG_Database {
 	}
 
 	/**
-	 * Store generated prompt.
+	 * Store a generated prompt.
 	 *
-	 * @param string $session_id     Session ID.
 	 * @param int    $post_id        Post ID.
 	 * @param string $prompt_content Generated prompt content.
 	 * 
 	 * @return array Array with prompt_id and is_duplicate flag.
 	 */
-	public static function store_prompt( $session_id, $post_id, $prompt_content ) {
+	public static function store_prompt( $post_id, $prompt_content ) {
 		global $wpdb;
 		
 		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
 		
-		// Get current user ID if logged in
-		$current_user_id = get_current_user_id();
 		$current_time = current_time( 'mysql', true );
 		
 		// Check if prompt already exists by content hash
@@ -835,31 +439,20 @@ class GPTPG_Database {
 			$prompt_id = $existing_prompt_id;
 			$is_duplicate = true;
 		} else {
-			// Create new prompt
+			// Create new prompt associated with post_id
 			$wpdb->insert(
 				$table_unique_prompts,
 				array(
+					'post_id' => $post_id,
 					'prompt_content' => $prompt_content,
 					'created_at' => $current_time,
 					'updated_at' => $current_time,
 				),
-				array( '%s', '%s', '%s' )
+				array( '%d', '%s', '%s', '%s' )
 			);
 			
 			$prompt_id = $wpdb->insert_id;
 		}
-		
-		// Now update the session record
-		$wpdb->update(
-			$table_sessions,
-			array(
-				'prompt_id' => $prompt_id,
-				'status' => 'complete',
-			),
-			array( 'session_id' => $session_id ),
-			array( '%d', '%s' ),
-			array( '%s' )
-		);
 		
 		return array(
 			'prompt_id' => $prompt_id,
@@ -867,53 +460,7 @@ class GPTPG_Database {
 		);
 	}
 
-	/**
-	 * Get post data by session ID.
-	 *
-	 * @param string $session_id Session ID.
-	 * 
-	 * @return object|null Post data on success, null on failure.
-	 */
-	public static function get_post_by_session( $session_id ) {
-		global $wpdb;
-		
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
-		$table_unique_posts = $wpdb->prefix . 'gptpg_unique_posts';
-		
-		$query = "SELECT up.* 
-			FROM $table_unique_posts up 
-			JOIN $table_sessions s ON up.post_id = s.post_id 
-			WHERE s.session_id = %s 
-			LIMIT 1";
-		
-		return $wpdb->get_row(
-			$wpdb->prepare($query, $session_id)
-		);
-	}
 
-	/**
-	 * Get code snippets by session ID.
-	 *
-	 * @param string $session_id Session ID.
-	 * 
-	 * @return array Array of code snippets.
-	 */
-	public static function get_snippets_by_session( $session_id ) {
-		global $wpdb;
-		
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
-		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
-		
-		$query = "SELECT us.*, ss.is_user_edited 
-			FROM $table_unique_snippets us 
-			JOIN $table_session_snippets ss ON us.snippet_id = ss.snippet_id 
-			WHERE ss.session_id = %s 
-			ORDER BY ss.id ASC";
-		
-		return $wpdb->get_results(
-			$wpdb->prepare($query, $session_id)
-		);
-	}
 
 	/**
 	 * Get snippets associated with a specific post ID.
@@ -926,87 +473,44 @@ class GPTPG_Database {
 		
 		error_log("GPTPG DEBUG: get_snippets_by_post_id called with post_id: {$post_id}");
 		
-		// First check the new normalized tables where snippets are actually stored
+		// Query snippets directly by post_id from the unique_snippets table
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
 		
-		// Query to get DISTINCT snippets from new normalized schema via sessions and post associations
-		// Use subquery to get the latest session mapping for each unique snippet for this post
-		$new_query = $wpdb->prepare(
-			"SELECT us.*, ss.is_user_edited, ss.created_at as mapping_created_at 
-			 FROM {$table_unique_snippets} us
-			 JOIN {$table_session_snippets} ss ON us.snippet_id = ss.snippet_id
-			 JOIN {$table_sessions} s ON ss.session_id = s.session_id
-			 WHERE s.post_id = %d
-			 AND ss.created_at = (
-				 SELECT MAX(ss2.created_at) 
-				 FROM {$table_session_snippets} ss2 
-				 JOIN {$table_sessions} s2 ON ss2.session_id = s2.session_id
-				 WHERE ss2.snippet_id = us.snippet_id AND s2.post_id = %d
-			 )
-			 GROUP BY us.snippet_id
-			 ORDER BY ss.created_at ASC",
-			$post_id, $post_id
+		$query = $wpdb->prepare(
+			"SELECT * FROM {$table_unique_snippets} WHERE post_id = %d ORDER BY created_at DESC",
+			$post_id
 		);
 		
-		error_log("GPTPG DEBUG: Using new tables query: {$new_query}");
-		$new_results = $wpdb->get_results( $new_query );
-		error_log("GPTPG DEBUG: New tables query returned " . count($new_results) . " results");
+		error_log("GPTPG DEBUG: Using direct post_id query: {$query}");
+		$results = $wpdb->get_results( $query );
+		error_log("GPTPG DEBUG: Direct query returned " . count($results) . " results");
 		
-		if ( !empty( $new_results ) ) {
-			error_log("GPTPG DEBUG: Found " . count($new_results) . " snippets from new tables for post ID {$post_id}");
-			return $new_results;
+		if ( !empty( $results ) ) {
+			error_log("GPTPG DEBUG: Found " . count($results) . " snippets for post ID {$post_id}");
+			return $results;
 		}
 		
-		// Fallback to old table for backward compatibility
-		$old_table_name = $wpdb->prefix . 'gptpg_code_snippets';
-		$table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$old_table_name}'") === $old_table_name;
-		
-		error_log("GPTPG DEBUG: Old table {$old_table_name} exists: " . ($table_exists ? 'YES' : 'NO'));
-		
-		if ( $table_exists ) {
-			$query = $wpdb->prepare(
-				"SELECT * FROM {$old_table_name} WHERE post_id = %d ORDER BY id ASC",
-				$post_id
-			);
-			
-			error_log("GPTPG DEBUG: Using old table fallback query: {$query}");
-			$results = $wpdb->get_results( $query );
-			error_log("GPTPG DEBUG: Old table query returned " . count($results) . " results");
-			
-			if ( !empty( $results ) ) {
-				error_log("GPTPG DEBUG: Found " . count($results) . " existing snippets from old table for post ID {$post_id}");
-				return $results;
-			}
-		}
-		
-		error_log("GPTPG DEBUG: No snippets found for post ID {$post_id} in any table");
+		error_log("GPTPG DEBUG: No snippets found for post ID {$post_id}");
 		return array();
 	}
 
 	/**
-	 * Delete snippet by ID from a session.
+	 * Delete snippet by ID.
 	 *
-	 * @param int    $snippet_id Snippet ID.
-	 * @param string $session_id Session ID.
+	 * @param int $snippet_id Snippet ID.
 	 * 
 	 * @return bool True on success, false on failure.
 	 */
-	public static function delete_snippet( $snippet_id, $session_id ) {
+	public static function delete_snippet( $snippet_id ) {
 		global $wpdb;
 		
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
+		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
 		
-		// We only remove the association between the session and the snippet,
-		// not the snippet itself as it might be used by other sessions
+		// Delete the snippet directly
 		return $wpdb->delete(
-			$table_session_snippets,
-			array( 
-				'snippet_id' => $snippet_id,
-				'session_id' => $session_id
-			),
-			array( '%d', '%s' )
+			$table_unique_snippets,
+			array( 'snippet_id' => $snippet_id ),
+			array( '%d' )
 		);
 	}
 
@@ -1014,13 +518,12 @@ class GPTPG_Database {
 	 * Update snippet.
 	 *
 	 * @param int    $snippet_id      Snippet ID.
-	 * @param string $session_id      Session ID.
 	 * @param string $snippet_url     URL of the code snippet.
 	 * @param string $snippet_content Content of the snippet.
 	 * 
 	 * @return bool True on success, false on failure.
 	 */
-	public static function update_snippet( $snippet_id, $session_id, $snippet_url, $snippet_content ) {
+	public static function update_snippet( $snippet_id, $snippet_url, $snippet_content ) {
 		global $wpdb;
 		
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
@@ -1040,46 +543,21 @@ class GPTPG_Database {
 			array( '%d' )
 		);
 		
-		// Mark as user edited in the session-snippets mapping
-		$mapping_updated = $wpdb->update(
-			$table_session_snippets,
+		// Update the is_user_edited flag directly in the snippet
+		$wpdb->update(
+			$table_unique_snippets,
 			array(
 				'is_user_edited' => 1,
 			),
-			array( 
-				'session_id' => $session_id,
-				'snippet_id' => $snippet_id 
-			),
+			array( 'snippet_id' => $snippet_id ),
 			array( '%d' ),
-			array( '%s', '%d' )
+			array( '%d' )
 		);
 		
-		return ($snippet_updated !== false && $mapping_updated !== false);
+		return ($snippet_updated !== false);
 	}
 
-	/**
-	 * Get generated prompt by session ID.
-	 *
-	 * @param string $session_id Session ID.
-	 * 
-	 * @return object|null Prompt data on success, null on failure.
-	 */
-	public static function get_prompt_by_session( $session_id ) {
-		global $wpdb;
-		
-		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
-		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
-		
-		$query = "SELECT up.* 
-			FROM $table_unique_prompts up 
-			JOIN $table_sessions s ON up.prompt_id = s.prompt_id 
-			WHERE s.session_id = %s 
-			LIMIT 1";
-		
-		return $wpdb->get_row(
-			$wpdb->prepare($query, $session_id)
-		);
-	}
+
 }
 
 // Initialize the database class.
