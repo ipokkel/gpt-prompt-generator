@@ -82,6 +82,7 @@ class GPTPG_Plugin {
 
 		// Register AJAX handlers
 		add_action( 'wp_ajax_gptpg_fetch_post', array( 'GPTPG_Form_Handler', 'ajax_fetch_post' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_fetch_post', array( 'GPTPG_Form_Handler', 'ajax_fetch_post' ) );
 		add_action( 'wp_ajax_gptpg_store_markdown', array( 'GPTPG_Form_Handler', 'ajax_store_markdown' ) );
 		add_action( 'wp_ajax_gptpg_process_snippets', array( 'GPTPG_Form_Handler', 'ajax_process_snippets' ) );
 		add_action( 'wp_ajax_gptpg_generate_prompt', array( 'GPTPG_Form_Handler', 'ajax_generate_prompt' ) );

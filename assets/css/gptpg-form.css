@@ -67,6 +67,11 @@
     display: none;
 }
 
+/* Make step 1 visible by default */
+#gptpg-step-1 {
+    display: block !important;
+}
+
 .gptpg-step-title {
     margin-top: 0;
     margin-bottom: 20px;

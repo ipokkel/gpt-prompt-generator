@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	</div>
 	
 	<!-- Step 1: Submit URL -->
-	<div id="gptpg-step-1" class="gptpg-step">
+	<div id="gptpg-step-1" class="gptpg-step" style="display: block;">
 		<h2 class="gptpg-step-title"><?php esc_html_e( 'Step 1: Enter Post URL', 'gpt-prompt-generator' ); ?></h2>
 		
 		<p><?php esc_html_e( 'Enter the URL of a Tooltip Recipe Post that you want to generate a prompt for.', 'gpt-prompt-generator' ); ?></p>

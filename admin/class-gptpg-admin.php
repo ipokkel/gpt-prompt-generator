@@ -112,6 +112,25 @@ class GPTPG_Admin {
 				'sanitize_callback' => 'absint',
 			)
 		);
+		
+		// Content Fetching Settings
+		register_setting(
+			'gptpg_settings_group',
+			'gptpg_fetch_strategy',
+			array(
+				'sanitize_callback' => 'sanitize_text_field',
+				'default' => 'enhanced',
+			)
+		);
+		
+		register_setting(
+			'gptpg_settings_group',
+			'gptpg_debug_logging',
+			array(
+				'sanitize_callback' => array( __CLASS__, 'sanitize_checkbox' ),
+				'default' => false,
+			)
+		);
 
 		// Add settings sections
 		add_settings_section(
@@ -139,6 +158,13 @@ class GPTPG_Admin {
 			'gptpg_frontend_section',
 			__( 'Front-End Settings', 'gpt-prompt-generator' ),
 			array( __CLASS__, 'render_frontend_section' ),
+			'gptpg-settings'
+		);
+		
+		add_settings_section(
+			'gptpg_content_fetching_section',
+			__( 'Content Fetching Settings', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_content_fetching_section' ),
 			'gptpg-settings'
 		);
 
@@ -173,6 +199,23 @@ class GPTPG_Admin {
 			array( __CLASS__, 'render_form_page_field' ),
 			'gptpg-settings',
 			'gptpg_frontend_section'
+		);
+		
+		// Content Fetching Fields
+		add_settings_field(
+			'gptpg_fetch_strategy',
+			__( 'Fetch Strategy', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_fetch_strategy_field' ),
+			'gptpg-settings',
+			'gptpg_content_fetching_section'
+		);
+		
+		add_settings_field(
+			'gptpg_debug_logging',
+			__( 'Debug Logging', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_debug_logging_field' ),
+			'gptpg-settings',
+			'gptpg_content_fetching_section'
 		);
 	}
 
@@ -464,6 +507,64 @@ class GPTPG_Admin {
 			GPTPG_VERSION,
 			true
 		);
+	}
+
+	/**
+	 * Render the content fetching section.
+	 */
+	public static function render_content_fetching_section() {
+		?>
+		<p><?php esc_html_e( 'Configure how the plugin fetches content from external URLs. These settings help bypass paywalls and membership restrictions.', 'gpt-prompt-generator' ); ?></p>
+		<?php
+	}
+
+	/**
+	 * Render the fetch strategy field.
+	 */
+	public static function render_fetch_strategy_field() {
+		$selected = get_option( 'gptpg_fetch_strategy', 'enhanced' );
+		$strategies = array(
+			'enhanced'        => __( 'Enhanced (Recommended) - Try all methods with intelligent fallback', 'gpt-prompt-generator' ),
+			'cookie_free_only' => __( 'Cookie-Free Only - Only attempt cookie-free fetching', 'gpt-prompt-generator' ),
+			'internal_only'   => __( 'Internal Only - Only fetch from same domain', 'gpt-prompt-generator' ),
+			'standard'        => __( 'Standard - Simple HTTP request (legacy behavior)', 'gpt-prompt-generator' ),
+		);
+		?>
+		<select id="gptpg_fetch_strategy" name="gptpg_fetch_strategy">
+			<?php foreach ( $strategies as $value => $label ) : ?>
+				<option value="<?php echo esc_attr( $value ); ?>"<?php selected( $selected, $value ); ?>>
+					<?php echo esc_html( $label ); ?>
+				</option>
+			<?php endforeach; ?>
+		</select>
+		<p class="description">
+			<?php esc_html_e( 'Choose the content fetching strategy. Enhanced mode tries multiple methods to bypass restrictions like PMPro Limit Post Views.', 'gpt-prompt-generator' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Render the debug logging field.
+	 */
+	public static function render_debug_logging_field() {
+		$checked = get_option( 'gptpg_debug_logging', false );
+		?>
+		<input type="checkbox" id="gptpg_debug_logging" name="gptpg_debug_logging" value="1" <?php checked( $checked ); ?>>
+		<label for="gptpg_debug_logging"><?php esc_html_e( 'Enable debug logging for content fetching attempts', 'gpt-prompt-generator' ); ?></label>
+		<p class="description">
+			<?php esc_html_e( 'When enabled, detailed logs of content fetching attempts will be written to the PHP error log for troubleshooting.', 'gpt-prompt-generator' ); ?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Sanitize checkbox value.
+	 *
+	 * @param mixed $value The checkbox value.
+	 * @return bool Sanitized boolean value.
+	 */
+	public static function sanitize_checkbox( $value ) {
+		return ! empty( $value );
 	}
 }
 

@@ -37,15 +37,7 @@ class GPTPG_Shortcodes {
 	 * @return string HTML output.
 	 */
 	public static function prompt_form_shortcode( $atts = array() ) {
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			// Filter to customize the restricted access message
-			$message = apply_filters( 
-				'gptpg_restricted_access_message', 
-				__( 'You must be logged in to access this feature.', 'gpt-prompt-generator' ) 
-			);
-			return '<div class="gptpg-restricted-access">' . esc_html( $message ) . '</div>';
-		}
+		// Note: Login restriction removed - plugin now accessible to all users
 
 		// Parse attributes
 		$atts = shortcode_atts(

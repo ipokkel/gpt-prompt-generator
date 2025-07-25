@@ -25,6 +25,24 @@ class GPTPG_Form_Handler {
 	public static function init() {
 		// Register AJAX handlers
 		add_action( 'wp_ajax_gptpg_store_markdown', array( __CLASS__, 'ajax_store_markdown' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_store_markdown', array( __CLASS__, 'ajax_store_markdown' ) );
+		add_action( 'wp_ajax_gptpg_fetch_post_url', array( __CLASS__, 'fetch_post_url' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_fetch_post_url', array( __CLASS__, 'fetch_post_url' ) );
+		add_action( 'wp_ajax_gptpg_process_markdown', array( __CLASS__, 'process_markdown' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_process_markdown', array( __CLASS__, 'process_markdown' ) );
+		add_action( 'wp_ajax_gptpg_process_snippets', array( __CLASS__, 'ajax_process_snippets' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_process_snippets', array( __CLASS__, 'ajax_process_snippets' ) );
+		add_action( 'wp_ajax_gptpg_generate_prompt', array( __CLASS__, 'ajax_generate_prompt' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_generate_prompt', array( __CLASS__, 'ajax_generate_prompt' ) );
+		add_action( 'wp_ajax_gptpg_reset_form', array( __CLASS__, 'reset_form' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_reset_form', array( __CLASS__, 'reset_form' ) );
+		add_action( 'wp_ajax_gptpg_verify_session', array( __CLASS__, 'verify_session' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_verify_session', array( __CLASS__, 'verify_session' ) );
+
+		// Check if GPTPG_Database class exists and initialize it
+		if ( class_exists( 'GPTPG_Database' ) ) {
+			GPTPG_Database::init();
+		}
 	}
 
 	/**
@@ -35,20 +53,37 @@ class GPTPG_Form_Handler {
 	public static function generate_session_id() {
 		return wp_hash( uniqid( 'gptpg_', true ) . time() );
 	}
+	
+	/**
+	 * Get existing session ID from request or generate a new one
+	 *
+	 * @return string Session ID
+	 */
+	public static function get_or_create_session() {
+		// Check if session ID is provided in the request
+		if ( isset( $_POST['session_id'] ) && ! empty( $_POST['session_id'] ) ) {
+			return sanitize_text_field( wp_unslash( $_POST['session_id'] ) );
+		}
+		
+		// Generate a new session ID if none provided
+		return self::generate_session_id();
+	}
 
 	/**
 	 * AJAX handler for fetching a post by URL.
 	 */
 	public static function ajax_fetch_post() {
-		// Check nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg-nonce' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
+		// Check nonce (enhanced for anonymous users)
+		if ( ! isset( $_POST['nonce'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - nonce missing.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		$nonce = sanitize_text_field( wp_unslash( $_POST['nonce'] ) );
+		if ( ! wp_verify_nonce( $nonce, 'gptpg-nonce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - invalid nonce.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to use this feature.', 'gpt-prompt-generator' ) ) );
-		}
+		// Note: Login restriction removed - plugin now accessible to all users
 
 		// Check if post URL was provided
 		if ( ! isset( $_POST['post_url'] ) || empty( $_POST['post_url'] ) ) {
@@ -74,22 +109,8 @@ class GPTPG_Form_Handler {
 			require_once GPTPG_PLUGIN_DIR . 'vendor/autoload.php';
 		}
 
-		// Check if the HTML to Markdown converter is available
-		if ( class_exists( 'League\HTMLToMarkdown\HtmlConverter' ) ) {
-			try {
-				$converter = new League\HTMLToMarkdown\HtmlConverter( array(
-					'strip_tags' => false,
-					'hard_break' => true,
-				) );
-				$post_content_markdown = $converter->convert( $post_data['content'] );
-			} catch ( Exception $e ) {
-				// Fallback to a simplified conversion
-				$post_content_markdown = wp_strip_all_tags( $post_data['content'] );
-			}
-		} else {
-			// Fallback to a simplified conversion
-			$post_content_markdown = wp_strip_all_tags( $post_data['content'] );
-		}
+		// Enhanced HTML to Markdown conversion
+		$post_content_markdown = self::convert_html_to_markdown( $post_data['content'] );
 
 		// Store post data in database
 		$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
@@ -101,6 +122,9 @@ class GPTPG_Form_Handler {
 			$post_content_markdown,
 			$expiry_time
 		);
+		
+		// Also store a lightweight transient token for faster validation
+		set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
 
 		// Check if we got a valid result array
 		if ( ! isset( $store_result['post_id'] ) ) {
@@ -202,33 +226,86 @@ class GPTPG_Form_Handler {
 	 * AJAX handler for storing and processing markdown content.
 	 */
 	public static function ajax_store_markdown() {
-		// Check nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg-nonce' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
+		// Check nonce (enhanced for anonymous users)
+		if ( ! isset( $_POST['nonce'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - nonce missing.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		$nonce = sanitize_text_field( wp_unslash( $_POST['nonce'] ) );
+		if ( ! wp_verify_nonce( $nonce, 'gptpg-nonce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - invalid nonce.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to use this feature.', 'gpt-prompt-generator' ) ) );
+		// Note: Login restriction removed - plugin now accessible to all users
+
+		// Check if post URL is provided
+		if ( ! isset( $_POST['post_url'] ) || empty( $_POST['post_url'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Post URL is required.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Check for required fields
-		if ( ! isset( $_POST['post_url'] ) || ! isset( $_POST['post_content'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Missing required fields.', 'gpt-prompt-generator' ) ) );
+		// Check if content is provided
+		if ( ! isset( $_POST['post_content'] ) || empty( $_POST['post_content'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Post content is required.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Sanitize and validate input
+		// Sanitize inputs
 		$post_url = esc_url_raw( wp_unslash( $_POST['post_url'] ) );
 		$post_content = wp_kses_post( wp_unslash( $_POST['post_content'] ) );
-		
-		// Clean up markdown content by removing author/footer information
-		$post_content = self::clean_markdown_content( $post_content );
-		
+
+		// Get or create a session
+		$session_id = self::get_or_create_session();
+
 		// Extract title from markdown content
 		$post_title = self::extract_title_from_markdown( $post_content );
+		
+		// Store the markdown content in the database - parameters: session_id, post_url, post_title, post_content, post_content_markdown
+		$post_store_result = GPTPG_Database::store_post( $session_id, $post_url, $post_title, '', $post_content );
+		
+		if ( ! $post_store_result || is_wp_error( $post_store_result ) ) {
+			wp_send_json_error( array( 'message' => __( 'Failed to store markdown content.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		// Extract GitHub/Gist links from post content
+		$github_links = GPTPG_GitHub_Handler::extract_github_urls( $post_content );
+		
+		// Check if this is a duplicate post and get existing snippets
+		$response_data = array(
+			'session_id' => $session_id,
+			'github_links' => $github_links
+		);
+		
+		// Get post ID from URL to check for existing snippets
+		$post_id = GPTPG_Database::post_exists($post_url);
+		error_log("GPTPG DEBUG: ajax_store_markdown - Post ID for URL {$post_url}: " . ($post_id ? $post_id : 'NOT FOUND'));
+		if ($post_id) {
+			// Fetch existing snippets for this post
+			$existing_snippets = GPTPG_Database::get_snippets_by_post_id($post_id);
+			error_log("GPTPG DEBUG: Found " . count($existing_snippets) . " existing snippets for post ID {$post_id}");
+			if (!empty($existing_snippets)) {
+				// Prepare snippets for JSON response
+				$snippet_data = array();
+				foreach ($existing_snippets as $snippet) {
+					$snippet_url = isset($snippet->snippet_url) ? $snippet->snippet_url : '';
+					error_log("GPTPG DEBUG: Processing snippet: " . $snippet_url);
+					$snippet_data[] = array(
+						'id'         => isset($snippet->id) ? $snippet->id : (isset($snippet->snippet_id) ? $snippet->snippet_id : 0),
+						'url'        => $snippet_url,
+						'type'       => isset($snippet->snippet_type) ? $snippet->snippet_type : '',
+						'has_content' => isset($snippet->snippet_content) ? !empty($snippet->snippet_content) : false,
+					);
+				}
+				$response_data['snippets'] = $snippet_data;
+				$response_data['has_snippets'] = true;
+				error_log("GPTPG DEBUG: Added snippets to response: " . json_encode($snippet_data));
+			} else {
+				error_log("GPTPG DEBUG: No snippets found for post ID {$post_id}");
+			}
+		} else {
+			error_log("GPTPG DEBUG: No post found for URL {$post_url}");
+		}
 
-		// Generate a new session ID
-		$session_id = self::generate_session_id();
+		// Success response
+		wp_send_json_success($response_data);
 
 		// Store post data in database
 		$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
@@ -261,15 +338,17 @@ class GPTPG_Form_Handler {
 	 * AJAX handler for processing code snippets.
 	 */
 	public static function ajax_process_snippets() {
-		// Check nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg-nonce' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
+		// Check nonce (enhanced for anonymous users)
+		if ( ! isset( $_POST['nonce'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - nonce missing.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		$nonce = sanitize_text_field( wp_unslash( $_POST['nonce'] ) );
+		if ( ! wp_verify_nonce( $nonce, 'gptpg-nonce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - invalid nonce.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to use this feature.', 'gpt-prompt-generator' ) ) );
-		}
+		// Note: Login restriction removed - plugin now accessible to all users
 
 		// Check if session ID was provided
 		if ( ! isset( $_POST['session_id'] ) || empty( $_POST['session_id'] ) ) {
@@ -302,10 +381,12 @@ class GPTPG_Form_Handler {
 		$errors        = array();
 
 		// Process each snippet
+		error_log("GPTPG DEBUG: ajax_process_snippets - Processing " . count($snippets) . " snippets");
 		foreach ( $snippets as $snippet ) {
 			// Sanitize data
 			$snippet_id  = isset( $snippet['id'] ) ? intval( $snippet['id'] ) : 0;
 			$snippet_url = isset( $snippet['url'] ) ? esc_url_raw( $snippet['url'] ) : '';
+			error_log("GPTPG DEBUG: Processing snippet: ID={$snippet_id}, URL={$snippet_url}");
 
 			// Skip if URL is empty
 			if ( empty( $snippet_url ) ) {
@@ -342,14 +423,17 @@ class GPTPG_Form_Handler {
 				$processed_ids[] = $snippet_id;
 			} else {
 				// Add new snippet
+				$post_id = isset($post_data->post_id) ? $post_data->post_id : 0; // Add property check to prevent PHP warning
+				error_log("GPTPG DEBUG: About to store snippet - session_id={$session_id}, post_id={$post_id}, url={$snippet_url}, type={$url_type}");
 				$snippet_result = GPTPG_Database::store_snippet(
 					$session_id,
-					$post_data->post_id, // Note: Using post_id from normalized schema
+					$post_id, // Using post_id from normalized schema with safety check
 					$snippet_url,
 					$url_type,
 					$code_content,
 					true // User edited
 				);
+				error_log("GPTPG DEBUG: store_snippet result: " . json_encode($snippet_result));
 				
 				if ( isset($snippet_result['snippet_id']) ) {
 					$new_snippet_id = $snippet_result['snippet_id'];
@@ -377,10 +461,10 @@ class GPTPG_Form_Handler {
 		$snippet_data = array();
 		foreach ( $updated_snippets as $snippet ) {
 			$snippet_data[] = array(
-				'id'         => $snippet->id,
-				'url'        => $snippet->snippet_url,
-				'type'       => $snippet->snippet_type,
-				'has_content' => ! empty( $snippet->snippet_content ),
+				'id'         => isset($snippet->id) ? $snippet->id : 0,
+				'url'        => isset($snippet->snippet_url) ? $snippet->snippet_url : '',
+				'type'       => isset($snippet->snippet_type) ? $snippet->snippet_type : '',
+				'has_content' => isset($snippet->snippet_content) ? !empty($snippet->snippet_content) : false,
 			);
 		}
 
@@ -395,15 +479,17 @@ class GPTPG_Form_Handler {
 	 * AJAX handler for generating a prompt.
 	 */
 	public static function ajax_generate_prompt() {
-		// Check nonce
-		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg-nonce' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
+		// Check nonce (enhanced for anonymous users)
+		if ( ! isset( $_POST['nonce'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - nonce missing.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		$nonce = sanitize_text_field( wp_unslash( $_POST['nonce'] ) );
+		if ( ! wp_verify_nonce( $nonce, 'gptpg-nonce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed - invalid nonce.', 'gpt-prompt-generator' ) ) );
 		}
 
-		// Check if user is logged in
-		if ( ! is_user_logged_in() ) {
-			wp_send_json_error( array( 'message' => __( 'You must be logged in to use this feature.', 'gpt-prompt-generator' ) ) );
-		}
+		// Note: Login restriction removed - plugin now accessible to all users
 
 		// Check if session ID was provided
 		if ( ! isset( $_POST['session_id'] ) || empty( $_POST['session_id'] ) ) {
@@ -443,10 +529,10 @@ class GPTPG_Form_Handler {
 	}
 
 	/**
-	 * Fetch post content from a URL.
+	 * Enhanced fetch post content from URL with multi-strategy approach.
 	 *
-	 * @param string $url Post URL.
-	 * @return array|WP_Error Post data or WP_Error on failure.
+	 * @param string $url The URL to fetch content from.
+	 * @return array|WP_Error Post data array with 'title' and 'content' keys, or WP_Error on failure.
 	 */
 	private static function fetch_post_content( $url ) {
 		// Make sure URL is valid
@@ -454,7 +540,121 @@ class GPTPG_Form_Handler {
 			return new WP_Error( 'invalid_url', __( 'Invalid URL format.', 'gpt-prompt-generator' ) );
 		}
 
-		// Prepare request arguments
+		// Use enhanced multi-strategy approach
+		return self::fetch_post_content_enhanced( $url );
+	}
+
+	/**
+	 * Enhanced multi-strategy content fetching.
+	 *
+	 * @param string $url The URL to fetch content from.
+	 * @return array|WP_Error Post data array or WP_Error on failure.
+	 */
+	private static function fetch_post_content_enhanced( $url ) {
+		$failures = array();
+		$strategy = get_option( 'gptpg_fetch_strategy', 'enhanced' );
+
+		// Strategy 1: Try internal access first (fastest and bypasses restrictions)
+		if ( 'enhanced' === $strategy ) {
+			$internal_result = self::fetch_content_internally( $url );
+			if ( ! is_wp_error( $internal_result ) ) {
+				self::log_fetch_attempt( $url, 'success', array( 'method' => 'internal' ) );
+				return $internal_result;
+			} else {
+				$failures[] = 'internal_fetch_failed';
+			}
+		}
+
+		// Strategy 2: Try cookie-free external fetch (recommended for PMPro LPV)
+		if ( in_array( $strategy, array( 'enhanced', 'cookie_free_only' ), true ) ) {
+			$cookie_free_result = self::fetch_content_without_cookies( $url );
+			if ( ! is_wp_error( $cookie_free_result ) ) {
+				$failures_detected = self::detect_fetch_failures( null, $cookie_free_result['content'], $url );
+				if ( empty( $failures_detected ) ) {
+					self::log_fetch_attempt( $url, 'success', array( 'method' => 'cookie_free' ) );
+					return $cookie_free_result;
+				} else {
+					$failures = array_merge( $failures, $failures_detected );
+				}
+			} else {
+				$failures[] = 'cookie_free_fetch_failed';
+			}
+		}
+
+		// Strategy 3: Standard fetch (fallback)
+		if ( 'enhanced' === $strategy ) {
+			$standard_result = self::fetch_content_standard( $url );
+			if ( ! is_wp_error( $standard_result ) ) {
+				$failures_detected = self::detect_fetch_failures( null, $standard_result['content'], $url );
+				if ( empty( $failures_detected ) ) {
+					self::log_fetch_attempt( $url, 'success', array( 'method' => 'standard' ) );
+					return $standard_result;
+				} else {
+					$failures = array_merge( $failures, $failures_detected );
+				}
+			} else {
+				$failures[] = 'standard_fetch_failed';
+			}
+		}
+
+		// All strategies failed
+		self::log_fetch_attempt( $url, 'failed', $failures );
+		$error_message = self::generate_user_friendly_error( $failures );
+		return new WP_Error( 'all_strategies_failed', $error_message );
+	}
+
+	/**
+	 * Fetch content internally for same-site URLs.
+	 *
+	 * @param string $url The URL to fetch content from.
+	 * @return array|WP_Error Post data array or WP_Error on failure.
+	 */
+	private static function fetch_content_internally( $url ) {
+		$site_url = get_site_url();
+		if ( 0 !== strpos( $url, $site_url ) ) {
+			return new WP_Error( 'not_internal', __( 'URL is not from the same site.', 'gpt-prompt-generator' ) );
+		}
+
+		// Extract post ID from URL if possible
+		$post_id = url_to_postid( $url );
+		if ( $post_id ) {
+			$post = get_post( $post_id );
+			if ( $post && 'publish' === $post->post_status ) {
+				return array(
+					'title'   => get_the_title( $post ),
+					'content' => apply_filters( 'the_content', $post->post_content ),
+				);
+			}
+		}
+
+		return new WP_Error( 'internal_fetch_failed', __( 'Could not fetch content internally.', 'gpt-prompt-generator' ) );
+	}
+
+	/**
+	 * Fetch content without cookies to bypass PMPro LPV restrictions.
+	 *
+	 * @param string $url The URL to fetch content from.
+	 * @return array|WP_Error Post data array or WP_Error on failure.
+	 */
+	private static function fetch_content_without_cookies( $url ) {
+		$args = array(
+			'timeout'     => 30,
+			'redirection' => 5,
+			'sslverify'   => true,
+			'user-agent'  => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . get_bloginfo( 'url' ) . '; GPT-Prompt-Generator/' . GPTPG_VERSION,
+			'cookies'     => array(), // Explicitly clear cookies
+		);
+
+		return self::perform_http_request( $url, $args );
+	}
+
+	/**
+	 * Standard content fetch with default settings.
+	 *
+	 * @param string $url The URL to fetch content from.
+	 * @return array|WP_Error Post data array or WP_Error on failure.
+	 */
+	private static function fetch_content_standard( $url ) {
 		$args = array(
 			'timeout'     => 30,
 			'redirection' => 5,
@@ -462,6 +662,17 @@ class GPTPG_Form_Handler {
 			'user-agent'  => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . get_bloginfo( 'url' ) . '; GPT-Prompt-Generator/' . GPTPG_VERSION,
 		);
 
+		return self::perform_http_request( $url, $args );
+	}
+
+	/**
+	 * Perform HTTP request with content extraction.
+	 *
+	 * @param string $url The URL to fetch content from.
+	 * @param array  $args Request arguments.
+	 * @return array|WP_Error Post data array or WP_Error on failure.
+	 */
+	private static function perform_http_request( $url, $args ) {
 		// Make the request
 		$response = wp_remote_get( $url, $args );
 
@@ -489,12 +700,22 @@ class GPTPG_Form_Handler {
 			return new WP_Error( 'empty_response', __( 'Received empty response from the server.', 'gpt-prompt-generator' ) );
 		}
 
+		return self::extract_content_from_html( $body );
+	}
+
+	/**
+	 * Extract content from HTML body.
+	 *
+	 * @param string $html_body The HTML body content.
+	 * @return array|WP_Error Post data array or WP_Error on failure.
+	 */
+	private static function extract_content_from_html( $html_body ) {
 		// Create a DOMDocument from the HTML
 		$doc = new DOMDocument();
 		
 		// Suppress warnings from invalid HTML
 		libxml_use_internal_errors( true );
-		$doc->loadHTML( $body );
+		$doc->loadHTML( $html_body );
 		libxml_clear_errors();
 
 		// Extract title
@@ -505,18 +726,20 @@ class GPTPG_Form_Handler {
 		}
 
 		// Find the post content
-		// First try to find an article element
 		$content = '';
 		$xpath = new DOMXPath( $doc );
 
-		// Try different selectors to find the main content
+		// Enhanced selectors to find the main content
 		$selectors = array(
 			'//article',
 			'//div[contains(@class, "post-content")]',
 			'//div[contains(@class, "entry-content")]',
 			'//div[contains(@class, "content")]',
+			'//div[contains(@class, "post-body")]',
+			'//div[contains(@class, "article-content")]',
 			'//main',
 			'//div[contains(@class, "main")]',
+			'//section[contains(@class, "content")]',
 		);
 
 		foreach ( $selectors as $selector ) {
@@ -541,6 +764,368 @@ class GPTPG_Form_Handler {
 			'title'   => $title,
 			'content' => $content,
 		);
+	}
+
+	/**
+	 * Detect various failure conditions in fetched content.
+	 *
+	 * @param mixed  $response HTTP response (unused in current implementation).
+	 * @param string $content The fetched HTML content.
+	 * @param string $url The original URL.
+	 * @return array Array of detected failures.
+	 */
+	private static function detect_fetch_failures( $response, $content, $url ) {
+		$failures = array();
+
+		// Content Quality Checks
+		if ( strlen( strip_tags( $content ) ) < 100 ) {
+			$failures[] = 'insufficient_content';
+		}
+
+		// PMPro LPV Detection
+		if ( strpos( $content, 'pmprolpv' ) !== false ) {
+			$failures[] = 'pmpro_lpv_detected';
+		}
+
+		// Extract the text content from body for better context analysis
+		// and avoid false positives from URL paths or metadata
+		$stripped_content = strip_tags($content);
+		
+		// Create a DOM document to analyze the actual content areas
+		$dom = new DOMDocument();
+		@$dom->loadHTML($content);
+		$xpath = new DOMXPath($dom);
+		
+		// Look specifically in content areas, not navigation or headers
+		$content_nodes = $xpath->query('//article | //div[contains(@class, "content")] | //div[contains(@class, "post-content")] | //div[contains(@class, "entry-content")]');
+		$main_content = '';
+		
+		// Extract text from content areas
+		if ($content_nodes->length > 0) {
+			foreach ($content_nodes as $node) {
+				$main_content .= $node->textContent . ' ';
+			}
+		} else {
+			// If no specific content areas found, use the stripped content
+			$main_content = $stripped_content;
+		}
+		
+		// Paywall/Login Detection
+		$paywall_indicators = array(
+			'data-paywall',
+			'subscription-required',
+			'login-required',
+			'premium-content',
+			'members-only',
+			'paywall',
+			'subscribe-to-continue',
+		);
+
+		// Check for indicators in the main content, not in URLs or navigation
+		foreach ( $paywall_indicators as $indicator ) {
+			// Look for indicators that are standalone words or phrases, not part of URLs
+			// by using word boundary checks
+			if ( preg_match('/\b' . preg_quote($indicator, '/') . '\b/i', $main_content) ) {
+				$failures[] = 'paywall_detected';
+				break;
+			}
+		}
+
+		// Common paywall text patterns
+		$paywall_patterns = array(
+			'/subscribe.*to.*continue/i',
+			'/become.*member.*to.*read/i',
+			'/this.*content.*is.*premium/i',
+			'/sign.*in.*to.*view/i',
+			'/login.*to.*read.*more/i',
+			'/membership.*required/i',
+		);
+
+		foreach ( $paywall_patterns as $pattern ) {
+			if ( preg_match( $pattern, $main_content ) ) {
+				$failures[] = 'paywall_content_detected';
+				break;
+			}
+		}
+
+		return $failures;
+	}
+
+	/**
+	 * Generate user-friendly error message based on detected failures.
+	 *
+	 * @param array $failures Array of detected failure types.
+	 * @return string User-friendly error message.
+	 */
+	private static function generate_user_friendly_error( $failures ) {
+		if ( empty( $failures ) ) {
+			return __( 'Content fetching failed for unknown reasons.', 'gpt-prompt-generator' );
+		}
+
+		// Check for specific failure types and provide helpful messages
+		if ( in_array( 'pmpro_lpv_detected', $failures, true ) || in_array( 'paywall_detected', $failures, true ) || in_array( 'paywall_content_detected', $failures, true ) ) {
+			return __( 'This content appears to be behind a paywall or membership restriction. Please try copying and pasting the content manually using the form below.', 'gpt-prompt-generator' );
+		}
+
+		if ( in_array( 'insufficient_content', $failures, true ) ) {
+			return __( 'The fetched content appears to be too short or incomplete. Please try copying and pasting the content manually using the form below.', 'gpt-prompt-generator' );
+		}
+
+		if ( in_array( 'internal_fetch_failed', $failures, true ) && in_array( 'cookie_free_fetch_failed', $failures, true ) && in_array( 'standard_fetch_failed', $failures, true ) ) {
+			return __( 'Unable to fetch content using any available method. Please try copying and pasting the content manually using the form below.', 'gpt-prompt-generator' );
+		}
+
+		return __( 'Content fetching encountered some issues. Please try copying and pasting the content manually using the form below.', 'gpt-prompt-generator' );
+	}
+
+	/**
+	 * Log fetch attempts for debugging purposes.
+	 *
+	 * @param string $url The URL that was fetched.
+	 * @param string $result The result ('success' or 'failed').
+	 * @param array  $details Additional details about the fetch attempt.
+	 */
+	private static function log_fetch_attempt( $url, $result, $details = array() ) {
+		if ( ! get_option( 'gptpg_debug_logging', false ) ) {
+			return;
+		}
+
+		$log_entry = array(
+			'timestamp' => current_time( 'mysql' ),
+			'url'       => $url,
+			'result'    => $result,
+			'details'   => $details,
+		);
+
+		error_log( 'GPTPG Fetch Log: ' . wp_json_encode( $log_entry ) );
+	}
+
+	/**
+	 * Enhanced HTML to Markdown conversion with better error handling.
+	 *
+	 * @param string $html_content The HTML content to convert.
+	 * @return string The converted Markdown content.
+	 */
+	private static function convert_html_to_markdown( $html_content ) {
+		if ( empty( $html_content ) ) {
+			return '';
+		}
+
+		// Check if the HTML to Markdown converter is available
+		if ( ! class_exists( 'League\HTMLToMarkdown\HtmlConverter' ) ) {
+			return self::convert_html_alternative( $html_content );
+		}
+
+		// Try primary conversion with league/html-to-markdown
+		try {
+			$converter = new League\HTMLToMarkdown\HtmlConverter( array(
+				'strip_tags'        => false,
+				'hard_break'        => true,
+				'remove_nodes'      => 'script style nav footer header aside',
+				'strip_placeholder_links' => true,
+			) );
+
+			// Pre-process HTML to improve conversion quality
+			$cleaned_html = self::preprocess_html_for_conversion( $html_content );
+			$markdown = $converter->convert( $cleaned_html );
+
+			// Validate the conversion result
+			if ( self::validate_markdown_conversion( $html_content, $markdown ) ) {
+				return self::post_process_markdown( $markdown );
+			}
+		} catch ( Exception $e ) {
+			// Log the error for debugging
+			if ( get_option( 'gptpg_debug_logging', false ) ) {
+				error_log( 'GPTPG HTML to Markdown conversion error: ' . $e->getMessage() );
+			}
+		}
+
+		// Fallback to alternative conversion methods
+		return self::convert_html_alternative( $html_content );
+	}
+
+	/**
+	 * Preprocess HTML to improve conversion quality.
+	 *
+	 * @param string $html The raw HTML content.
+	 * @return string The preprocessed HTML.
+	 */
+	private static function preprocess_html_for_conversion( $html ) {
+		// Remove problematic elements that cause conversion issues
+		$html = preg_replace( '/<script[^>]*>.*?<\/script>/is', '', $html );
+		$html = preg_replace( '/<style[^>]*>.*?<\/style>/is', '', $html );
+		$html = preg_replace( '/<nav[^>]*>.*?<\/nav>/is', '', $html );
+		$html = preg_replace( '/<footer[^>]*>.*?<\/footer>/is', '', $html );
+		$html = preg_replace( '/<aside[^>]*>.*?<\/aside>/is', '', $html );
+
+		// Fix common HTML issues
+		$html = str_replace( array( '&nbsp;', '\u00a0' ), ' ', $html );
+		$html = preg_replace( '/\s+/', ' ', $html ); // Normalize whitespace
+
+		return $html;
+	}
+
+	/**
+	 * Validate if the Markdown conversion was successful.
+	 *
+	 * @param string $original_html The original HTML content.
+	 * @param string $markdown The converted Markdown content.
+	 * @return bool True if conversion is valid, false otherwise.
+	 */
+	private static function validate_markdown_conversion( $original_html, $markdown ) {
+		// Basic validation checks
+		if ( empty( $markdown ) ) {
+			if ( get_option( 'gptpg_debug_logging', false ) ) {
+				error_log( 'GPTPG: Markdown conversion failed - empty result' );
+			}
+			return false;
+		}
+
+		// Check for minimum content length (more reasonable threshold)
+		$markdown_text_length = strlen( strip_tags( $markdown ) );
+		if ( $markdown_text_length < 20 ) {
+			if ( get_option( 'gptpg_debug_logging', false ) ) {
+				error_log( 'GPTPG: Markdown conversion failed - too short: ' . $markdown_text_length . ' characters' );
+			}
+			return false;
+		}
+
+		// For longer content, do a more lenient comparison
+		$original_text_length = strlen( strip_tags( $original_html ) );
+		if ( $original_text_length > 500 && $markdown_text_length < ( $original_text_length * 0.2 ) ) {
+			if ( get_option( 'gptpg_debug_logging', false ) ) {
+				error_log( 'GPTPG: Markdown conversion failed - too short compared to original. Original: ' . $original_text_length . ', Markdown: ' . $markdown_text_length );
+			}
+			return false;
+		}
+
+		if ( get_option( 'gptpg_debug_logging', false ) ) {
+			error_log( 'GPTPG: Markdown conversion validated successfully. Length: ' . $markdown_text_length );
+		}
+
+		return true;
+	}
+
+	/**
+	 * Post-process the converted Markdown to improve quality.
+	 *
+	 * @param string $markdown The converted Markdown content.
+	 * @return string The post-processed Markdown.
+	 */
+	private static function post_process_markdown( $markdown ) {
+		// Clean up excessive whitespace
+		$markdown = preg_replace( '/\n\s*\n\s*\n/', "\n\n", $markdown );
+		$markdown = preg_replace( '/^\s+|\s+$/m', '', $markdown );
+
+		// Remove empty links
+		$markdown = preg_replace( '/\[\]\([^)]*\)/', '', $markdown );
+
+		// Clean up heading formatting
+		$markdown = preg_replace( '/^(#{1,6})\s*(.*)\s*$/m', '$1 $2', $markdown );
+
+		return trim( $markdown );
+	}
+
+	/**
+	 * Alternative HTML to Markdown conversion methods.
+	 *
+	 * @param string $html_content The HTML content to convert.
+	 * @return string The converted content.
+	 */
+	private static function convert_html_alternative( $html_content ) {
+		if ( get_option( 'gptpg_debug_logging', false ) ) {
+			error_log( 'GPTPG: Using fallback conversion methods' );
+		}
+
+		// Method 1: Enhanced strip_tags with basic formatting preservation
+		$markdown = self::strip_tags_preserve_formatting( $html_content );
+
+		if ( get_option( 'gptpg_debug_logging', false ) ) {
+			error_log( 'GPTPG: Fallback method 1 result length: ' . strlen( trim( $markdown ) ) );
+		}
+
+		// Method 2: If Method 1 fails, use enhanced strip_tags
+		if ( empty( $markdown ) || strlen( trim( $markdown ) ) < 20 ) {
+			$markdown = self::enhanced_strip_tags( $html_content );
+			if ( get_option( 'gptpg_debug_logging', false ) ) {
+				error_log( 'GPTPG: Fallback method 2 result length: ' . strlen( trim( $markdown ) ) );
+			}
+		}
+
+		// Method 3: Last resort - simple wp_strip_all_tags
+		if ( empty( $markdown ) || strlen( trim( $markdown ) ) < 20 ) {
+			$markdown = wp_strip_all_tags( $html_content );
+			// Clean up whitespace
+			$markdown = preg_replace( '/\s+/', ' ', $markdown );
+			$markdown = trim( $markdown );
+			if ( get_option( 'gptpg_debug_logging', false ) ) {
+				error_log( 'GPTPG: Fallback method 3 result length: ' . strlen( $markdown ) );
+			}
+		}
+
+		return $markdown;
+	}
+
+	/**
+	 * Enhanced strip_tags that preserves some formatting.
+	 *
+	 * @param string $html The HTML content.
+	 * @return string The formatted text content.
+	 */
+	private static function strip_tags_preserve_formatting( $html ) {
+		// Convert common HTML elements to markdown-like formatting
+		$replacements = array(
+			'/<h([1-6])[^>]*>(.*?)<\/h[1-6]>/i' => "\n\n$2\n\n",
+			'/<p[^>]*>(.*?)<\/p>/i'             => "\n\n$1\n\n",
+			'/<br\s*\/?>/i'                     => "\n",
+			'/<strong[^>]*>(.*?)<\/strong>/i'   => "**$1**",
+			'/<b[^>]*>(.*?)<\/b>/i'             => "**$1**",
+			'/<em[^>]*>(.*?)<\/em>/i'           => "*$1*",
+			'/<i[^>]*>(.*?)<\/i>/i'             => "*$1*",
+			'/<code[^>]*>(.*?)<\/code>/i'       => "`$1`",
+			'/<a[^>]*href=["\']([^"\'>]*)["\'][^>]*>(.*?)<\/a>/i' => "[$2]($1)",
+			'/<li[^>]*>(.*?)<\/li>/i'           => "\n- $1",
+			'/<blockquote[^>]*>(.*?)<\/blockquote>/i' => "\n> $1\n",
+		);
+
+		$text = $html;
+		foreach ( $replacements as $pattern => $replacement ) {
+			$text = preg_replace( $pattern, $replacement, $text );
+		}
+
+		// Remove remaining HTML tags
+		$text = strip_tags( $text );
+
+		// Clean up whitespace
+		$text = preg_replace( '/\n\s*\n\s*\n/', "\n\n", $text );
+		$text = trim( $text );
+
+		return $text;
+	}
+
+	/**
+	 * Enhanced strip_tags method for better content extraction.
+	 *
+	 * @param string $html The HTML content.
+	 * @return string The cleaned text content.
+	 */
+	private static function enhanced_strip_tags( $html ) {
+		// Remove unwanted elements completely
+		$html = preg_replace( '/<(script|style|nav|footer|header|aside)[^>]*>.*?<\/\1>/is', '', $html );
+
+		// Add spacing for block elements
+		$html = preg_replace( '/<\/(div|p|h[1-6]|article|section|blockquote|ul|ol|li)>/i', '$0\n\n', $html );
+		$html = preg_replace( '/<(br|hr)\s*\/?>/i', '\n', $html );
+
+		// Remove all HTML tags
+		$text = wp_strip_all_tags( $html );
+
+		// Clean up whitespace
+		$text = preg_replace( '/\n\s*\n\s*\n/', "\n\n", $text );
+		$text = preg_replace( '/^\s+|\s+$/m', '', $text );
+		$text = trim( $text );
+
+		return $text;
 	}
 
 	/**
@@ -601,6 +1186,91 @@ class GPTPG_Form_Handler {
 		$content = rtrim( $content );
 
 		 return $content;
+	}
+
+	/**
+	 * Verify session validity.
+	 * This is a lightweight validation endpoint that checks if a session token is valid
+	 * without requiring the full database session to be valid.
+	 */
+	public static function verify_session() {
+		// Check nonce
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'gptpg_form' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Security check failed.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		// Check if session ID was provided
+		if ( ! isset( $_POST['session_id'] ) || empty( $_POST['session_id'] ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid session ID.', 'gpt-prompt-generator' ) ) );
+		}
+		
+		// Get the session ID
+		$session_id = sanitize_text_field( wp_unslash( $_POST['session_id'] ) );
+		
+		// First check if the lightweight transient token exists
+		$token_valid = get_transient( 'gptpg_token_' . $session_id );
+		
+		if ( $token_valid ) {
+			// Token is valid, no need to check the database
+			wp_send_json_success( array( 
+				'valid' => true,
+				'message' => __( 'Session is valid.', 'gpt-prompt-generator' ) 
+			) );
+			return;
+		}
+		
+		// If transient doesn't exist, check the database as fallback if it exists
+		try {
+			// Check if the database tables exist before trying to query them
+			global $wpdb;
+			$table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}gptpg_sessions'") === "{$wpdb->prefix}gptpg_sessions";
+			
+			if ($table_exists) {
+				$post_data = GPTPG_Database::get_post_by_session( $session_id );
+				
+				if ( $post_data && !is_array($post_data) ) {
+					// Session exists in database, create a new transient token
+					$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
+					set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
+					
+					wp_send_json_success( array( 
+						'valid' => true,
+						'message' => __( 'Session validated from database.', 'gpt-prompt-generator' ) 
+					) );
+					return;
+				}
+			} else {
+				// Tables don't exist yet, but we can still use the client-side state
+				// Create a new transient for this session so it can be validated in the future
+				$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
+				set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
+				
+				wp_send_json_success( array( 
+					'valid' => true,
+					'message' => __( 'Session validated (no database tables yet).', 'gpt-prompt-generator' ),
+					'db_status' => 'no_tables'
+				) );
+				return;
+			}
+		} catch (Exception $e) {
+			// Error checking database, but we can still use the client-side state
+			// Create a new transient for this session
+			$expiry_time = intval( get_option( 'gptpg_expiry_time', 3600 ) );
+			set_transient( 'gptpg_token_' . $session_id, true, $expiry_time );
+			
+			wp_send_json_success( array( 
+				'valid' => true,
+				'message' => __( 'Session validated (database error).', 'gpt-prompt-generator' ),
+				'db_status' => 'error'
+			) );
+			return;
+		}
+		
+		// Session is invalid
+		wp_send_json_error( array( 
+			'message' => __( 'Session is no longer valid on the server.', 'gpt-prompt-generator' ),
+			'error_type' => 'session_invalid' 
+		) );
 	}
 }
 

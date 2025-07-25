@@ -19,6 +19,60 @@
         
         // Initialize the form
         init: function() {
+            // Try to restore form state from localStorage
+            const savedState = localStorage.getItem('gptpg_form_state');
+            if (savedState) {
+                try {
+                    const state = JSON.parse(savedState);
+                    this.sessionId = state.sessionId || '';
+                    this.postUrl = state.postUrl || '';
+                    this.postTitle = state.postTitle || '';
+                    this.postContent = state.postContent || '';
+                    this.snippets = state.snippets || [];
+                    
+                    // Don't restore currentStep - always start at step 1 when page loads
+                    // but prepare form fields with saved data
+                    if (this.postUrl) {
+                        $('#gptpg-post-url').val(this.postUrl);
+                    }
+                    
+                    if (this.postContent) {
+                        $('#gptpg-post-content').val(this.postContent);
+                    }
+                    
+                    // Show a restore session notice if we have data
+                    if (this.sessionId) {
+                        const notice = $('<div class="gptpg-notice gptpg-info-message"></div>')
+                            .html('You have a saved session. Would you like to restore it?');
+                        
+                        const restoreButton = $('<button>', {
+                            'class': 'button button-primary gptpg-restore-btn',
+                            'text': 'Restore Session'
+                        }).on('click', function(e) {
+                            e.preventDefault();
+                            GPTPG_Form.restoreSession();
+                        });
+                        
+                        const discardButton = $('<button>', {
+                            'class': 'button gptpg-discard-btn',
+                            'text': 'Start New'
+                        }).on('click', function(e) {
+                            e.preventDefault();
+                            GPTPG_Form.reset();
+                        });
+                        
+                        notice.append('<br>').append(restoreButton).append(' ').append(discardButton);
+                        $('#gptpg-step-1').prepend(notice);
+                    }
+                } catch (e) {
+                    console.error('Error restoring form state:', e);
+                    localStorage.removeItem('gptpg_form_state');
+                }
+            }
+            
+            // Check for saved state and offer to restore
+            GPTPG_Form.checkForSavedState();
+            
             // Step navigation
             $('.gptpg-form-nav-button').on('click', function(e) {
                 e.preventDefault();
@@ -78,20 +132,175 @@
             this.navigateToStep(1);
         },
         
+        // Check for saved state and offer to restore
+        checkForSavedState: function() {
+            var savedState = localStorage.getItem('gptpg_form_state');
+            
+            if (savedState) {
+                try {
+                    var state = JSON.parse(savedState);
+                    var now = new Date().getTime();
+                    var savedTime = state.timestamp || 0;
+                    
+                    // Only show restore option if saved within last 24 hours
+                    if (now - savedTime < 24 * 60 * 60 * 1000) {
+                        // First verify if the session is still valid on server
+                        if (state.sessionId) {
+                            GPTPG_Form.verifySession(state.sessionId, function(isValid) {
+                                if (isValid) {
+                                    // Session is valid, show restore option
+                                    $('#gptpg-restore-state').show();
+                                    
+                                    $('#gptpg-restore-button').on('click', function(e) {
+                                        e.preventDefault();
+                                        GPTPG_Form.restoreState(state);
+                                    });
+                                    
+                                    $('#gptpg-start-fresh').on('click', function(e) {
+                                        e.preventDefault();
+                                        $('#gptpg-restore-state').hide();
+                                    });
+                                } else {
+                                    // Session is invalid, remove saved state
+                                    console.log('Saved session is no longer valid on server');
+                                    localStorage.removeItem('gptpg_form_state');
+                                }
+                            });
+                        } else {
+                            // No session ID, just show restore option
+                            $('#gptpg-restore-state').show();
+                            
+                            $('#gptpg-restore-button').on('click', function(e) {
+                                e.preventDefault();
+                                GPTPG_Form.restoreState(state);
+                            });
+                            
+                            $('#gptpg-start-fresh').on('click', function(e) {
+                                e.preventDefault();
+                                $('#gptpg-restore-state').hide();
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing saved state:', e);
+                    localStorage.removeItem('gptpg_form_state');
+                }
+            }
+        },
+        
+        // Verify if a session is still valid on the server
+        verifySession: function(sessionId, callback) {
+            $.ajax({
+                url: gptpg_vars.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'gptpg_verify_session',
+                    nonce: gptpg_vars.nonce,
+                    session_id: sessionId
+                },
+                success: function(response) {
+                    console.log('AJAX: Response success status:', response.success);
+                    if (response.success) {
+                        console.log('Session verified:', response.data.message);
+                        callback(true);
+                    } else {
+                        console.log('Session invalid:', response.data.message);
+                        callback(false);
+                    }
+                },
+                error: function() {
+                    console.error('Error verifying session');
+                    callback(false);
+                }
+            });
+        },
+        
+        // Save current form state to localStorage
+        saveState: function() {
+            const state = {
+                sessionId: this.sessionId,
+                postUrl: this.postUrl,
+                postTitle: this.postTitle,
+                postContent: this.postContent,
+                snippets: this.snippets,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            localStorage.setItem('gptpg_form_state', JSON.stringify(state));
+        },
+        
+        // Restore saved session data and navigate to appropriate step
+        restoreSession: function() {
+            // Remove the restore notice
+            $('.gptpg-info-message').remove();
+            
+            // If we have markdown content, we can go to step 2
+            if (this.postContent) {
+                $('#gptpg-display-url').text(this.postUrl);
+                $('#gptpg-post-content').val(this.postContent);
+                this.navigateToStep(2);
+            } 
+            // If we have snippets, we can go to step 3
+            else if (this.snippets && this.snippets.length > 0) {
+                $('#gptpg-display-url').text(this.postUrl);
+                this.populateSnippets();
+                this.navigateToStep(3);
+            }
+            
+            // Verify session is still valid on server
+            this.verifySession();
+        },
+        
+        // Verify session is still valid on server
+        verifySession: function() {
+            if (!this.sessionId) return;
+            
+            $.ajax({
+                url: gptpg_vars.ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'gptpg_verify_session',
+                    nonce: gptpg_vars.nonce,
+                    session_id: this.sessionId
+                },
+                beforeSend: function() {
+                    GPTPG_Form.showLoading();
+                },
+                complete: function() {
+                    GPTPG_Form.hideLoading();
+                },
+                success: function(response) {
+                    if (!response.success) {
+                        // Session is invalid, show message but keep local data
+                        GPTPG_Form.showWarning($('#gptpg-step-' + GPTPG_Form.currentStep), 
+                            response.data.message + ' Your data has been kept locally, but you\'ll need to resubmit to continue.');
+                    }
+                }
+            });
+        },
+        
         // Navigate to a specific step
         navigateToStep: function(step) {
-            // Hide all steps
-            $('.gptpg-step').hide();
+            console.log('NAVIGATE: Attempting to navigate to step', step);
+            
+            // Hide all steps with stronger approach to override any inline styles
+            $('.gptpg-step').each(function() {
+                $(this).hide().attr('style', 'display: none !important');
+            });
+            console.log('NAVIGATE: All steps hidden');
             
             // Show the current step
             $('#gptpg-step-' + step).show();
+            console.log('NAVIGATE: Showing step', step, 'Visible:', $('#gptpg-step-' + step).is(':visible'));
             
             // Update the current step
             this.currentStep = parseInt(step);
+            console.log('NAVIGATE: Current step updated to', this.currentStep);
             
             // Update the step indicator
             $('.gptpg-step-indicator').removeClass('active');
             $('#gptpg-step-indicator-' + step).addClass('active');
+            console.log('NAVIGATE: Step indicators updated');
         },
         
         // Fetch and process post URL
@@ -99,6 +308,9 @@
             const urlForm = $('#gptpg-url-form');
             const urlInput = $('#gptpg-post-url');
             const url = urlInput.val().trim();
+            
+            // Debug: Log initial URL input
+            console.log('URL Input Value:', url);
             
             // Clear previous errors and warnings
             GPTPG_Form.clearError(urlForm);
@@ -128,15 +340,23 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading(urlForm);
                     
+                    // Debug: Log full response
+                    console.log('AJAX Response:', response);
+                    
+                    console.log('AJAX: Response success status:', response.success);
                     if (response.success) {
                         // Store session ID and post title
                         GPTPG_Form.sessionId = response.data.session_id;
                         GPTPG_Form.postTitle = response.data.post_title;
                         
+                        // Save state to localStorage
+                        GPTPG_Form.saveState();
+                        
                         // Display URL in next step
                         $('#gptpg-display-url').text(url);
                         
                         // Check if this is a duplicate post
+                        console.log('Is duplicate post:', response.data.is_duplicate_post);
                         if (response.data.is_duplicate_post) {
                             // Clear any previous duplicate content options
                             $('#gptpg-duplicate-options').remove();
@@ -211,7 +431,9 @@
                             
                         } else {
                             // Navigate to step 2
+                            console.log('FLOW: About to navigate to step 2 (non-duplicate path)');
                             GPTPG_Form.navigateToStep(2);
+                            console.log('FLOW: After navigation call - current step:', GPTPG_Form.currentStep);
                         }
                         
                         // Check for duplicate snippets
@@ -227,11 +449,46 @@
                             }
                         }
                     } else {
-                        GPTPG_Form.showError(urlForm, response.data.message || gptpg_vars.error_fetch_failed);
+                        // Check if the error message indicates a paywall or membership restriction
+                        const errorMessage = response.data.message || gptpg_vars.error_fetch_failed;
+                        const isPaywallError = errorMessage.toLowerCase().includes('paywall') || 
+                                               errorMessage.toLowerCase().includes('membership restriction');
+                        
+                        if (isPaywallError) {
+                            // For paywall errors, show warning but allow proceeding to step 2
+                            GPTPG_Form.showWarning(urlForm, errorMessage);
+                            
+                            // Create a continue button that will allow proceeding to step 2
+                            const continueButton = $('<button>', {
+                                type: 'button',
+                                class: 'button button-primary',
+                                text: 'Continue to Step 2',
+                                css: { 'margin-top': '10px' }
+                            }).on('click', function() {
+                                // Display URL in next step
+                                $('#gptpg-display-url').text(GPTPG_Form.postUrl);
+                                
+                                // Navigate to step 2
+                                GPTPG_Form.navigateToStep(2);
+                                
+                                // Show notification on step 2
+                                GPTPG_Form.showWarning($('#gptpg-step-2'), 
+                                    'This content appears to be behind a paywall or membership restriction. ' +
+                                    'Please use browser extensions or manual copy-paste to gather the content and paste it below.');
+                            });
+                            
+                            // Append the button to the warning message
+                            $('.gptpg-warning-message').append(continueButton);
+                        } else {
+                            // For other errors, show error message and stay on step 1
+                            GPTPG_Form.showError(urlForm, errorMessage);
+                        }
                     }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
                     GPTPG_Form.hideLoading(urlForm);
+                    console.log('AJAX Error:', status, error);
+                    console.log('XHR:', xhr);
                     GPTPG_Form.showError(urlForm, gptpg_vars.error_ajax_failed);
                 }
             });
@@ -273,15 +530,28 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading(markdownForm);
                     
+                    console.log('AJAX: Response success status:', response.success);
                     if (response.success) {
                         // Store session ID for future requests
                         GPTPG_Form.sessionId = response.data.session_id;
                         
-                        // Extract GitHub links if any
-                        if (response.data.github_links && response.data.github_links.length > 0) {
+                        // Debug: Log the entire response data
+                        console.log('GPTPG DEBUG: Step 2 submission response data:', response.data);
+                        
+                        // Check if we have existing snippets from a duplicate post
+                        if (response.data.snippets && response.data.snippets.length > 0) {
+                            console.log('GPTPG DEBUG: Using existing snippets from database:', response.data.snippets);
+                            console.log('GPTPG DEBUG: Number of snippets found:', response.data.snippets.length);
+                            // Use existing snippets from the database
+                            GPTPG_Form.populateExistingSnippets(response.data.snippets);
+                        } 
+                        // If no existing snippets, extract GitHub links if any
+                        else if (response.data.github_links && response.data.github_links.length > 0) {
+                            console.log('GPTPG DEBUG: Using GitHub links from markdown:', response.data.github_links);
                             GPTPG_Form.populateSnippets(response.data.github_links);
                         } else {
-                            // Add empty snippet field if no links found
+                            // Add empty snippet field if no links or existing snippets found
+                            console.log('GPTPG DEBUG: No snippets or GitHub links found, adding empty field');
                             GPTPG_Form.addSnippetField();
                         }
                         
@@ -427,6 +697,7 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-3'));
                     
+                    console.log('AJAX: Response success status:', response.success);
                     if (response.success) {
                         // Store snippets
                         GPTPG_Form.snippets = response.data.snippets;
@@ -497,6 +768,7 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-4'));
                     
+                    console.log('AJAX: Response success status:', response.success);
                     if (response.success) {
                         // Store the prompt
                         GPTPG_Form.prompt = response.data.prompt;
@@ -509,7 +781,9 @@
                         $('#gptpg-copy-prompt').on('click', GPTPG_Form.copyToClipboard);
                         
                         // Setup new button
-                        $('#gptpg-start-new').on('click', GPTPG_Form.reset);
+                        $('#gptpg-start-new').on('click', function() {
+                            GPTPG_Form.reset();
+                        });
                         
                         // Check for duplicate prompt
                         if (response.data.is_duplicate_prompt) {
@@ -618,7 +892,33 @@
     
     // Initialize form on document ready
     $(document).ready(function() {
+        console.log('GPTPG Form: Document ready triggered');
+        
+        // Debug form elements
+        console.log('Step 1 element exists:', $('#gptpg-step-1').length > 0);
+        console.log('Step 1 display state:', $('#gptpg-step-1').css('display'));
+        console.log('URL input exists:', $('#gptpg-post-url').length > 0);
+        
+        // Initialize form
         GPTPG_Form.init();
+        
+        // Debug after init
+        console.log('After init - Step 1 display state:', $('#gptpg-step-1').css('display'));
+        
+        // Force display of step 1 if no step is visible (fallback)
+        setTimeout(function() {
+            console.log('GPTPG Form: Running visibility check');
+            console.log('Visible steps:', $('.gptpg-step:visible').length);
+            
+            if ($('.gptpg-step:visible').length === 0) {
+                console.log('No form step visible, forcing display of step 1');
+                $('#gptpg-step-1').show();
+                $('.gptpg-step-indicator').removeClass('active');
+                $('#gptpg-step-indicator-1').addClass('active');
+                
+                console.log('After force - Step 1 display state:', $('#gptpg-step-1').css('display'));
+            }
+        }, 500); // Small delay to ensure other scripts have run
     });
     
 })(jQuery);

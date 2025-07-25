@@ -916,6 +916,76 @@ class GPTPG_Database {
 	}
 
 	/**
+	 * Get snippets associated with a specific post ID.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return array Array of snippet objects.
+	 */
+	public static function get_snippets_by_post_id( $post_id ) {
+		global $wpdb;
+		
+		error_log("GPTPG DEBUG: get_snippets_by_post_id called with post_id: {$post_id}");
+		
+		// First check the new normalized tables where snippets are actually stored
+		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
+		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
+		$table_sessions = $wpdb->prefix . 'gptpg_sessions';
+		
+		// Query to get DISTINCT snippets from new normalized schema via sessions and post associations
+		// Use subquery to get the latest session mapping for each unique snippet for this post
+		$new_query = $wpdb->prepare(
+			"SELECT us.*, ss.is_user_edited, ss.created_at as mapping_created_at 
+			 FROM {$table_unique_snippets} us
+			 JOIN {$table_session_snippets} ss ON us.snippet_id = ss.snippet_id
+			 JOIN {$table_sessions} s ON ss.session_id = s.session_id
+			 WHERE s.post_id = %d
+			 AND ss.created_at = (
+				 SELECT MAX(ss2.created_at) 
+				 FROM {$table_session_snippets} ss2 
+				 JOIN {$table_sessions} s2 ON ss2.session_id = s2.session_id
+				 WHERE ss2.snippet_id = us.snippet_id AND s2.post_id = %d
+			 )
+			 GROUP BY us.snippet_id
+			 ORDER BY ss.created_at ASC",
+			$post_id, $post_id
+		);
+		
+		error_log("GPTPG DEBUG: Using new tables query: {$new_query}");
+		$new_results = $wpdb->get_results( $new_query );
+		error_log("GPTPG DEBUG: New tables query returned " . count($new_results) . " results");
+		
+		if ( !empty( $new_results ) ) {
+			error_log("GPTPG DEBUG: Found " . count($new_results) . " snippets from new tables for post ID {$post_id}");
+			return $new_results;
+		}
+		
+		// Fallback to old table for backward compatibility
+		$old_table_name = $wpdb->prefix . 'gptpg_code_snippets';
+		$table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$old_table_name}'") === $old_table_name;
+		
+		error_log("GPTPG DEBUG: Old table {$old_table_name} exists: " . ($table_exists ? 'YES' : 'NO'));
+		
+		if ( $table_exists ) {
+			$query = $wpdb->prepare(
+				"SELECT * FROM {$old_table_name} WHERE post_id = %d ORDER BY id ASC",
+				$post_id
+			);
+			
+			error_log("GPTPG DEBUG: Using old table fallback query: {$query}");
+			$results = $wpdb->get_results( $query );
+			error_log("GPTPG DEBUG: Old table query returned " . count($results) . " results");
+			
+			if ( !empty( $results ) ) {
+				error_log("GPTPG DEBUG: Found " . count($results) . " existing snippets from old table for post ID {$post_id}");
+				return $results;
+			}
+		}
+		
+		error_log("GPTPG DEBUG: No snippets found for post ID {$post_id} in any table");
+		return array();
+	}
+
+	/**
 	 * Delete snippet by ID from a session.
 	 *
 	 * @param int    $snippet_id Snippet ID.
