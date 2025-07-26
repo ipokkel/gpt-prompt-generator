@@ -43,7 +43,7 @@ class GPTPG_Prompt_Generator {
 		
 		// Prepare replacement data
 		$post_title = $post_data->post_title;
-		$post_content_markdown = $post_data->post_content_markdown;
+		$post_content_markdown = isset($post_data->markdown_content) ? $post_data->markdown_content : '';
 		
 		// Prepare code snippets
 		$code_snippets = array();
@@ -63,7 +63,7 @@ class GPTPG_Prompt_Generator {
 		$prompt = str_replace( '[post_title]', $post_title, $prompt );
 		
 		// Replace [existing_post_content] with the markdown content
-		$prompt = str_replace( '[existing_post_content]', $post_content_markdown, $prompt );
+		$prompt = str_replace( '[existing_post_content]', $post_content_markdown ?? '', $prompt );
 		
 		// Replace [link_old_post] with the original post URL
 		$prompt = str_replace( '[link_old_post]', $post_data->post_url, $prompt );

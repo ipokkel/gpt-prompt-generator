@@ -34,12 +34,15 @@ CREATE TABLE wp_gptpg_unique_snippets (
 -- Table for storing unique prompts
 CREATE TABLE wp_gptpg_unique_prompts (
     prompt_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+    post_id bigint(20) unsigned NOT NULL,
     prompt_content longtext NOT NULL,
     prompt_hash varchar(32) GENERATED ALWAYS AS (MD5(prompt_content)) STORED,
     created_at datetime NOT NULL,
     updated_at datetime NOT NULL,
     PRIMARY KEY (prompt_id),
-    UNIQUE KEY prompt_hash (prompt_hash)
+    UNIQUE KEY prompt_hash (prompt_hash),
+    KEY post_id (post_id),
+    FOREIGN KEY (post_id) REFERENCES wp_gptpg_unique_posts(post_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Verify tables were created

@@ -235,7 +235,10 @@ class GPTPG_Form_Handler {
 		}
 		
 		// Extract GitHub/Gist links from post content
+		error_log("GPTPG DEBUG: Extracting GitHub links from content (length: " . strlen($post_content) . ")");
+		error_log("GPTPG DEBUG: Content preview: " . substr($post_content, 0, 500) . "...");
 		$github_links = GPTPG_GitHub_Handler::extract_github_urls( $post_content );
+		error_log("GPTPG DEBUG: Found " . count($github_links) . " GitHub links: " . json_encode($github_links));
 		
 		// Check if this is a duplicate post and get existing snippets
 		$response_data = array(
@@ -276,18 +279,7 @@ class GPTPG_Form_Handler {
 		// Success response
 		wp_send_json_success($response_data);
 
-		// Note: Post data is already available since we retrieved it by post_id
-		// No need to store again - we're just processing the markdown content
 
-		// Extract GitHub/Gist links from markdown content (optional in new workflow)
-		$github_links = array(); // Empty array as we're not extracting links automatically now
-
-		// Return response
-		wp_send_json_success( array(
-			'post_id' => $post_id,
-			'post_title' => $post_data->post_title,
-			'github_links' => $github_links
-		) );
 	}
 
 	/**

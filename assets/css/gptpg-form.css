@@ -192,6 +192,70 @@
     color: #856404;
 }
 
+/* LocalStorage restore notification */
+.gptpg-notice.gptpg-info-message {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border: 2px solid #2196f3;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px 0 30px 0; /* Extra bottom margin for spacing */
+    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.15);
+    font-size: 16px;
+    font-weight: 500;
+    color: #0d47a1;
+    position: relative;
+    overflow: hidden;
+}
+
+.gptpg-notice.gptpg-info-message::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: #2196f3;
+}
+
+/* Style the restore notification buttons */
+.gptpg-notice .gptpg-restore-btn {
+    background: #2196f3;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    margin-right: 8px;
+    margin-top: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.gptpg-notice .gptpg-restore-btn:hover {
+    background: #1976d2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(33, 150, 243, 0.4);
+}
+
+.gptpg-notice .button:not(.gptpg-restore-btn) {
+    background: transparent;
+    border: 2px solid #2196f3;
+    color: #2196f3;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 500;
+    margin-top: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gptpg-notice .button:not(.gptpg-restore-btn):hover {
+    background: #2196f3;
+    color: white;
+    transform: translateY(-1px);
+}
+
 /* Notification */
 .gptpg-notification {
     /* Removed display: none to make browser extensions always visible */

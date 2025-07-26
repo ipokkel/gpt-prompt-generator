@@ -43,11 +43,11 @@
                     // Show a restore notice if we have data
                     if (this.postId) {
                         const notice = $('<div class="gptpg-notice gptpg-info-message"></div>')
-                            .html('You have saved data. Would you like to restore it?');
+                            .html('You have unsaved work from a previous session. Would you like to continue where you left off?');
                         
                         const restoreButton = $('<button>', {
                             'class': 'button button-primary gptpg-restore-btn',
-                            'text': 'Restore Data'
+                            'text': 'Continue Work'
                         }).on('click', function(e) {
                             e.preventDefault();
                             GPTPG_Form.restoreSession();
@@ -187,13 +187,13 @@
             
             // If we have markdown content, we can go to step 2
             if (this.postContent) {
-                $('#gptpg-display-url').text(this.postUrl);
+                $('#gptpg-display-url').html('<a href="' + this.postUrl + '" target="_blank" rel="noopener noreferrer">' + this.postUrl + '</a>');
                 $('#gptpg-post-content').val(this.postContent);
                 this.navigateToStep(2);
             } 
             // If we have snippets, we can go to step 3
             else if (this.snippets && this.snippets.length > 0) {
-                $('#gptpg-display-url').text(this.postUrl);
+                $('#gptpg-display-url').html('<a href="' + this.postUrl + '" target="_blank" rel="noopener noreferrer">' + this.postUrl + '</a>');
                 this.populateSnippets();
                 this.navigateToStep(3);
             }
@@ -272,8 +272,8 @@
                         // Save state to localStorage
                         GPTPG_Form.saveState();
                         
-                        // Display URL in next step
-                        $('#gptpg-display-url').text(url);
+                        // Display URL in next step as clickable link
+                        $('#gptpg-display-url').html('<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>');
                         
                         // Check if this is a duplicate post
                         console.log('Is duplicate post:', response.data.is_duplicate_post);
@@ -385,8 +385,8 @@
                                 text: 'Continue to Step 2',
                                 css: { 'margin-top': '10px' }
                             }).on('click', function() {
-                                // Display URL in next step
-                                $('#gptpg-display-url').text(GPTPG_Form.postUrl);
+                                // Display URL in next step as clickable link
+                                $('#gptpg-display-url').html('<a href="' + GPTPG_Form.postUrl + '" target="_blank" rel="noopener noreferrer">' + GPTPG_Form.postUrl + '</a>');
                                 
                                 // Navigate to step 2
                                 GPTPG_Form.navigateToStep(2);
