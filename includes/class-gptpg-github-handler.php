@@ -342,14 +342,24 @@ class GPTPG_GitHub_Handler {
 	public static function extract_github_urls( $content ) {
 		$urls = array();
 		
-		// Regular expression to find GitHub URLs
+		// First priority: Extract URLs from HTML DOM (before markdown conversion loses structure)
+		$dom_urls = self::extract_urls_from_html_dom( $content );
+		error_log("GPTPG DEBUG: DOM-based URLs found: " . json_encode($dom_urls));
+		
+		if ( ! empty( $dom_urls ) ) {
+			// If we found URLs in the DOM structure, prioritize them
+			error_log("GPTPG DEBUG: Using DOM-based URLs (priority)");
+			return $dom_urls;
+		}
+		
+		// Fallback: Regular expression extraction from content
 		$patterns = array(
 			// GitHub repository file URLs
-			'#https?://github\.com/[^/\s]+/[^/\s]+/blob/[^/\s]+/[^\s]+#',
+			'#https?://github\.com/[^/\s]+/[^/\s]+/blob/[^/\s]+/[^\s)\]"\'>]+#',
 			// GitHub Gist URLs
 			'#https?://gist\.github\.com/[^/\s]+/[a-f0-9]+#',
 			// Raw GitHub content URLs
-			'#https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/[^/\s]+/[^\s]+#',
+			'#https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/[^/\s]+/[^\s)\]"\'>]+#',
 		);
 		
 		// Find all matches
@@ -360,8 +370,398 @@ class GPTPG_GitHub_Handler {
 			}
 		}
 		
-		// Remove duplicates and return
-		return array_unique( $urls );
+		// Remove duplicates
+		$urls = array_unique( $urls );
+		error_log("GPTPG DEBUG: Regex-based URLs found: " . json_encode($urls));
+		
+		// Smart filtering and prioritization for PMP posts
+		$filtered_urls = self::prioritize_code_snippet_urls( $urls, $content );
+		error_log("GPTPG DEBUG: Filtered URLs after prioritization: " . json_encode($filtered_urls));
+		
+		// If no suitable URLs found, try to construct potential snippet URLs based on post URL patterns
+		if ( empty( $filtered_urls ) ) {
+			error_log("GPTPG DEBUG: No suitable URLs found, constructing potential snippet URLs");
+			$constructed_urls = self::construct_potential_snippet_urls( $content );
+			error_log("GPTPG DEBUG: Constructed URLs: " . json_encode($constructed_urls));
+			if ( ! empty( $constructed_urls ) ) {
+				$filtered_urls = $constructed_urls;
+			}
+		}
+		
+		error_log("GPTPG DEBUG: Final URLs returned: " . json_encode($filtered_urls));
+		return $filtered_urls;
+	}
+	
+	/**
+	 * Extract GitHub URLs from HTML DOM structure, specifically looking for code snippet containers.
+	 *
+	 * @param string $html_content HTML content to parse.
+	 * @return array Array of GitHub URLs found in DOM structure.
+	 */
+	private static function extract_urls_from_html_dom( $html_content ) {
+		$urls = array();
+		
+		// Debug: Show HTML content structure
+		error_log("GPTPG DEBUG: HTML content length: " . strlen($html_content));
+		error_log("GPTPG DEBUG: HTML preview: " . substr($html_content, 0, 1000) . "...");
+		
+		// Check if the content contains file-meta in the raw HTML
+		if ( strpos( $html_content, 'file-meta' ) !== false ) {
+			error_log("GPTPG DEBUG: Raw HTML contains 'file-meta' string");
+		} else {
+			error_log("GPTPG DEBUG: Raw HTML does NOT contain 'file-meta' string");
+		}
+		
+		// Check for pmpro-snippets-library in raw HTML
+		if ( strpos( $html_content, 'pmpro-snippets-library' ) !== false ) {
+			error_log("GPTPG DEBUG: Raw HTML contains 'pmpro-snippets-library' string");
+			
+			// Extract pmpro-snippets-library URLs directly from raw HTML
+			$snippet_urls = self::extract_snippet_urls_from_raw_html( $html_content );
+			if ( ! empty( $snippet_urls ) ) {
+				error_log("GPTPG DEBUG: Found snippet URLs in raw HTML: " . json_encode($snippet_urls));
+				return $snippet_urls;
+			}
+		} else {
+			error_log("GPTPG DEBUG: Raw HTML does NOT contain 'pmpro-snippets-library' string");
+		}
+		
+		// Suppress DOM parsing warnings for malformed HTML
+		libxml_use_internal_errors( true );
+		
+		$dom = new DOMDocument();
+		$dom->loadHTML( $html_content, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD );
+		
+		// Look for file-meta containers (common in PMP code recipe posts)
+		$xpath = new DOMXPath( $dom );
+		
+		// Find elements with class containing 'file-meta'
+		$file_meta_elements = $xpath->query( "//div[contains(@class, 'file-meta')]" );
+		
+		error_log("GPTPG DEBUG: Found " . $file_meta_elements->length . " file-meta containers");
+		
+		foreach ( $file_meta_elements as $element ) {
+			// Find all links within this file-meta container
+			$links = $element->getElementsByTagName( 'a' );
+			
+			foreach ( $links as $link ) {
+				$href = $link->getAttribute( 'href' );
+				
+				// Check if this is a GitHub URL
+				if ( preg_match( '#https?://github\.com/[^/\s]+/[^/\s]+/#', $href ) ||
+				     preg_match( '#https?://raw\.githubusercontent\.com/#', $href ) ) {
+					
+					error_log("GPTPG DEBUG: Found GitHub URL in file-meta: " . $href);
+					$urls[] = $href;
+				}
+			}
+		}
+		
+		// Also look for other common code snippet containers
+		$code_containers = $xpath->query( "//div[contains(@class, 'code-embed')] | //div[contains(@class, 'gist')] | //div[contains(@class, 'snippet')]" );
+		
+		error_log("GPTPG DEBUG: Found " . $code_containers->length . " additional code containers");
+		
+		foreach ( $code_containers as $element ) {
+			$links = $element->getElementsByTagName( 'a' );
+			
+			foreach ( $links as $link ) {
+				$href = $link->getAttribute( 'href' );
+				
+				if ( preg_match( '#https?://github\.com/[^/\s]+/[^/\s]+/#', $href ) ||
+				     preg_match( '#https?://raw\.githubusercontent\.com/#', $href ) ||
+				     preg_match( '#https?://gist\.github\.com/#', $href ) ) {
+					
+					error_log("GPTPG DEBUG: Found GitHub URL in code container: " . $href);
+					$urls[] = $href;
+				}
+			}
+		}
+		
+		// Clean up and restore error handling
+		libxml_clear_errors();
+		libxml_use_internal_errors( false );
+		
+		// Remove duplicates and prioritize pmpro-snippets-library URLs
+		$urls = array_unique( $urls );
+		$prioritized_urls = array();
+		$other_urls = array();
+		
+		foreach ( $urls as $url ) {
+			if ( strpos( $url, 'pmpro-snippets-library' ) !== false ) {
+				$prioritized_urls[] = $url;
+			} else {
+				$other_urls[] = $url;
+			}
+		}
+		
+		// Return prioritized URLs first
+		$final_urls = array_merge( $prioritized_urls, $other_urls );
+		error_log("GPTPG DEBUG: DOM extraction prioritized URLs: " . json_encode($final_urls));
+		
+		return $final_urls;
+	}
+	
+	/**
+	 * Extract pmpro-snippets-library URLs directly from raw HTML content.
+	 *
+	 * @param string $html_content Raw HTML content.
+	 * @return array Array of pmpro-snippets-library URLs found.
+	 */
+	private static function extract_snippet_urls_from_raw_html( $html_content ) {
+		$urls = array();
+		
+		// Specific patterns for pmpro-snippets-library URLs
+		$patterns = array(
+			// GitHub blob URLs for pmpro-snippets-library
+			'#https?://github\.com/strangerstudios/pmpro-snippets-library/blob/[^\s"\'>]+#i',
+			// Raw URLs for pmpro-snippets-library
+			'#https?://raw\.githubusercontent\.com/strangerstudios/pmpro-snippets-library/[^\s"\'>]+#i',
+			// Alternative patterns that might be embedded
+			'#https?://[^\s"\'>]*pmpro-snippets-library[^\s"\'>]*#i',
+		);
+		
+		foreach ( $patterns as $pattern ) {
+			preg_match_all( $pattern, $html_content, $matches );
+			if ( ! empty( $matches[0] ) ) {
+				foreach ( $matches[0] as $url ) {
+					// Clean up any trailing punctuation or HTML artifacts
+					$url = rtrim( $url, '.,:;!?)"\'>]' );
+					error_log("GPTPG DEBUG: Raw HTML extraction found: " . $url);
+					
+					// If this is a gist embed URL, extract the actual GitHub URL from the target parameter
+					if ( strpos( $url, 'gist.paidmembershipspro.com/embed.js' ) !== false ) {
+						$extracted_url = self::extract_github_url_from_embed( $url );
+						if ( $extracted_url ) {
+							error_log("GPTPG DEBUG: Extracted GitHub URL from embed: " . $extracted_url);
+							$urls[] = $extracted_url;
+						} else {
+							$urls[] = $url;
+						}
+					} else {
+						$urls[] = $url;
+					}
+				}
+			}
+		}
+		
+		// Remove duplicates and prioritize blob URLs over raw URLs
+		$urls = array_unique( $urls );
+		$blob_urls = array();
+		$raw_urls = array();
+		
+		foreach ( $urls as $url ) {
+			if ( strpos( $url, '/blob/' ) !== false ) {
+				$blob_urls[] = $url;
+			} else {
+				$raw_urls[] = $url;
+			}
+		}
+		
+		// Return blob URLs first (more user-friendly), then raw URLs
+		$prioritized_urls = array_merge( $blob_urls, $raw_urls );
+		error_log("GPTPG DEBUG: Raw HTML extraction final URLs: " . json_encode($prioritized_urls));
+		
+		return $prioritized_urls;
+	}
+	
+	/**
+	 * Extract the actual GitHub URL from a gist embed.js target parameter.
+	 *
+	 * @param string $embed_url The gist embed URL containing the target parameter.
+	 * @return string|false The extracted GitHub URL or false if not found.
+	 */
+	private static function extract_github_url_from_embed( $embed_url ) {
+		// Parse the URL to get query parameters
+		$parsed_url = parse_url( $embed_url );
+		
+		if ( ! isset( $parsed_url['query'] ) ) {
+			return false;
+		}
+		
+		// Parse query string
+		parse_str( $parsed_url['query'], $params );
+		
+		if ( ! isset( $params['target'] ) ) {
+			return false;
+		}
+		
+		// URL decode the target parameter
+		$target_url = urldecode( $params['target'] );
+		error_log("GPTPG DEBUG: Decoded target URL: " . $target_url);
+		
+		// Validate that it's a GitHub URL
+		if ( strpos( $target_url, 'github.com/strangerstudios/pmpro-snippets-library' ) !== false ) {
+			return $target_url;
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Prioritize and filter GitHub URLs to identify actual code snippets.
+	 *
+	 * @param array  $urls    Array of GitHub URLs found.
+	 * @param string $content The original content for context.
+	 * @return array Filtered and prioritized array of URLs.
+	 */
+	private static function prioritize_code_snippet_urls( $urls, $content ) {
+		if ( empty( $urls ) ) {
+			return $urls;
+		}
+		
+		$pmpro_snippet_urls = array();
+		$other_urls = array();
+		
+		// Separate pmpro-snippets-library URLs from others
+		foreach ( $urls as $url ) {
+			if ( strpos( $url, 'pmpro-snippets-library' ) !== false ) {
+				$pmpro_snippet_urls[] = $url;
+			} else {
+				$other_urls[] = $url;
+			}
+		}
+		
+		// If we have pmpro-snippets-library URLs, prioritize them
+		if ( ! empty( $pmpro_snippet_urls ) ) {
+			return $pmpro_snippet_urls;
+		}
+		
+		// If no pmpro-snippets-library URLs, filter out common reference URLs
+		$filtered_other_urls = array();
+		foreach ( $other_urls as $url ) {
+			// Skip common reference URLs that are not actual code snippets
+			if ( self::is_likely_reference_url( $url, $content ) ) {
+				continue;
+			}
+			$filtered_other_urls[] = $url;
+		}
+		
+		return ! empty( $filtered_other_urls ) ? $filtered_other_urls : $other_urls;
+	}
+	
+	/**
+	 * Determine if a URL is likely a reference URL rather than a code snippet.
+	 *
+	 * @param string $url     The GitHub URL to check.
+	 * @param string $content The original content for context.
+	 * @return bool True if likely a reference URL.
+	 */
+	private static function is_likely_reference_url( $url, $content ) {
+		// Check for common reference patterns in the surrounding text
+		$reference_indicators = array(
+			'refer to',
+			'see the',
+			'check out',
+			'view the',
+			'documentation',
+			'for more info',
+			'full list',
+			'defaults file',
+		);
+		
+		// Look for reference indicators near the URL
+		$url_position = strpos( $content, $url );
+		if ( $url_position !== false ) {
+			// Get surrounding text (100 chars before and after)
+			$start = max( 0, $url_position - 100 );
+			$surrounding_text = strtolower( substr( $content, $start, 300 ) );
+			
+			foreach ( $reference_indicators as $indicator ) {
+				if ( strpos( $surrounding_text, $indicator ) !== false ) {
+					return true;
+				}
+			}
+		}
+		
+		// Check if URL points to common reference files
+		$reference_files = array(
+			'/defaults.php',
+			'/readme.md',
+			'/documentation',
+		);
+		
+		foreach ( $reference_files as $ref_file ) {
+			if ( strpos( strtolower( $url ), $ref_file ) !== false ) {
+				return true;
+			}
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * Construct potential snippet URLs based on post content and URL patterns.
+	 *
+	 * @param string $content The original post content.
+	 * @return array Array of potential snippet URLs.
+	 */
+	private static function construct_potential_snippet_urls( $content ) {
+		$potential_urls = array();
+		
+		// Get the current post URL from the content or context
+		$post_url = self::extract_post_url_from_content( $content );
+		
+		if ( empty( $post_url ) ) {
+			return $potential_urls;
+		}
+		
+		// Extract slug from post URL
+		$slug = self::extract_slug_from_url( $post_url );
+		
+		if ( empty( $slug ) ) {
+			return $potential_urls;
+		}
+		
+		// Common patterns for PMP code snippets
+		$snippet_patterns = array(
+			// Standard pattern
+			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/misc/{$slug}.php",
+			// Alternative patterns with different prefixes
+			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/memberlite/{$slug}.php",
+			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/frontend/{$slug}.php",
+			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/admin/{$slug}.php",
+			// With memberlite prefix variations
+			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/memberlite/memberlite-{$slug}.php",
+			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/memberlite/memberlite-remove-selector-from-memberlite-defaults.php",
+		);
+		
+		// Try to verify these URLs exist (basic check)
+		foreach ( $snippet_patterns as $pattern ) {
+			$potential_urls[] = $pattern;
+		}
+		
+		return $potential_urls;
+	}
+	
+	/**
+	 * Extract post URL from content (if available).
+	 *
+	 * @param string $content The post content.
+	 * @return string Post URL or empty string.
+	 */
+	private static function extract_post_url_from_content( $content ) {
+		// Try to extract from canonical URL or other indicators
+		if ( preg_match( '#https://www\.paidmembershipspro\.com/[^/\s]+/#', $content, $matches ) ) {
+			return $matches[0];
+		}
+		
+		return '';
+	}
+	
+	/**
+	 * Extract slug from a PMP post URL.
+	 *
+	 * @param string $url The post URL.
+	 * @return string The slug or empty string.
+	 */
+	private static function extract_slug_from_url( $url ) {
+		// Extract slug from URL like https://www.paidmembershipspro.com/add-remove-css-selector/
+		if ( preg_match( '#https://www\.paidmembershipspro\.com/([^/]+)/?#', $url, $matches ) ) {
+			return $matches[1];
+		}
+		
+		return '';
 	}
 }
 

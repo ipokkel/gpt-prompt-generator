@@ -245,6 +245,22 @@
             // Store URL
             GPTPG_Form.postUrl = url;
             
+            // Clear previous form state for new URL to prevent cross-post contamination
+            GPTPG_Form.postContent = '';
+            GPTPG_Form.postTitle = '';
+            GPTPG_Form.snippets = [];
+            GPTPG_Form.prompt = '';
+            
+            // Clear markdown textarea to prevent showing old content
+            $('#gptpg-markdown-content').val('');
+            
+            // Clear any existing snippets container
+            $('#gptpg-snippets-container').empty();
+            
+            // Clear any existing prompt
+            $('#gptpg-generated-prompt').val('');
+            $('#gptpg-prompt-container').hide();
+            
             // Show loading indicator
             GPTPG_Form.showLoading(urlForm);
             
@@ -352,6 +368,14 @@
                         } else {
                             // Navigate to step 2
                             console.log('FLOW: About to navigate to step 2 (non-duplicate path)');
+                            
+                            // Auto-populate markdown textarea with converted content from backend
+                            if (response.data.markdown_content) {
+                                $('#gptpg-markdown-content').val(response.data.markdown_content);
+                                GPTPG_Form.postContent = response.data.markdown_content;
+                                console.log('GPTPG DEBUG: Auto-populated markdown textarea with converted content');
+                            }
+                            
                             GPTPG_Form.navigateToStep(2);
                             console.log('FLOW: After navigation call - current step:', GPTPG_Form.currentStep);
                         }
@@ -556,13 +580,13 @@
         },
         
         // Add a new snippet field
-        addSnippetField: function(url = '') {
+        addSnippetField: function(url = '', id = '') {
             const container = $('#gptpg-snippets-container');
             const index = $('.gptpg-snippet-row').length;
             
             const html = `
                 <div class="gptpg-snippet-row">
-                    <input type="hidden" class="gptpg-snippet-id" value="">
+                    <input type="hidden" class="gptpg-snippet-id" value="${id}">
                     <div class="gptpg-snippet-url">
                         <input type="url" class="gptpg-snippet-url-input" value="${url}" placeholder="Enter GitHub/Gist URL">
                     </div>
@@ -583,6 +607,8 @@
                 const id = $(this).find('.gptpg-snippet-id').val();
                 const url = $(this).find('.gptpg-snippet-url-input').val();
                 
+                console.log('GPTPG DEBUG: Collecting snippet - ID:', id, 'URL:', url);
+                
                 if (url) {
                     snippets.push({
                         id: id ? parseInt(id) : 0,
@@ -590,6 +616,8 @@
                     });
                 }
             });
+            
+            console.log('GPTPG DEBUG: Final snippets being sent:', snippets);
             
             // Snippets are now optional since we already have markdown content
             if (snippets.length === 0) {

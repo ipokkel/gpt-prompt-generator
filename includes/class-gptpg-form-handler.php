@@ -140,6 +140,7 @@ class GPTPG_Form_Handler {
 		$response_data = array(
 			'post_id'      => $post_id,
 			'post_title'   => $post_data['title'],
+			'markdown_content' => $post_content_markdown, // Include converted markdown for all posts
 			'github_links' => $github_links,
 			'is_duplicate_post' => $is_duplicate,
 			'duplicate_snippets' => $snippet_results
@@ -323,7 +324,23 @@ class GPTPG_Form_Handler {
 
 		// Get existing snippets from the database by post_id
 		$existing_snippets = GPTPG_Database::get_snippets_by_post_id( $post_id );
-		$existing_ids      = wp_list_pluck( $existing_snippets, 'snippet_id' );
+		
+		// Debug: Check structure of existing snippets
+		if ( ! empty( $existing_snippets ) ) {
+			error_log("GPTPG DEBUG: First existing snippet structure: " . json_encode($existing_snippets[0]));
+		}
+		
+		// Try different field names for ID extraction
+		$existing_ids = wp_list_pluck( $existing_snippets, 'snippet_id' );
+		if ( empty( $existing_ids ) ) {
+			// Try 'id' field instead
+			$existing_ids = wp_list_pluck( $existing_snippets, 'id' );
+		}
+		
+		// Convert to integers to ensure type consistency
+		$existing_ids = array_map( 'intval', $existing_ids );
+		
+		error_log("GPTPG DEBUG: Existing snippet IDs extracted: " . json_encode($existing_ids));
 
 		// Process snippets
 		$processed_ids = array();
