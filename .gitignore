@@ -4,6 +4,7 @@ composer.phar
 
 # Project specific
 /briefs/
+/orphans/
 grok-prompt-brief.md
 
 # General

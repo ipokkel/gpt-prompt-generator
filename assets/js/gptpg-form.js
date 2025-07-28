@@ -268,26 +268,26 @@
         
         // Navigate to a specific step
         navigateToStep: function(step) {
-            console.log('NAVIGATE: Attempting to navigate to step', step);
+            GPTPG_Logger.debug('Attempting to navigate to step ' + step, 'NAVIGATE');
             
             // Hide all steps with stronger approach to override any inline styles
             $('.gptpg-step').each(function() {
                 $(this).hide().attr('style', 'display: none !important');
             });
-            console.log('NAVIGATE: All steps hidden');
+            GPTPG_Logger.debug('All steps hidden', 'NAVIGATE');
             
             // Show the current step
             $('#gptpg-step-' + step).show();
-            console.log('NAVIGATE: Showing step', step, 'Visible:', $('#gptpg-step-' + step).is(':visible'));
+            GPTPG_Logger.debug('Showing step ' + step + ' Visible: ' + $('#gptpg-step-' + step).is(':visible'), 'NAVIGATE');
             
             // Update the current step
             this.currentStep = parseInt(step);
-            console.log('NAVIGATE: Current step updated to', this.currentStep);
+            GPTPG_Logger.debug('Current step updated to ' + this.currentStep, 'NAVIGATE');
             
             // Update the step indicator
             $('.gptpg-step-indicator').removeClass('active');
             $('#gptpg-step-indicator-' + step).addClass('active');
-            console.log('NAVIGATE: Step indicators updated');
+            GPTPG_Logger.debug('Step indicators updated', 'NAVIGATE');
         },
         
         // Fetch and process post URL
@@ -297,7 +297,7 @@
             const url = urlInput.val().trim();
             
             // Debug: Log initial URL input
-            console.log('URL Input Value:', url);
+            GPTPG_Logger.debug('URL Input Value: ' + url);
             
             // Clear previous errors and warnings
             GPTPG_Form.clearError(urlForm);
@@ -344,9 +344,9 @@
                     GPTPG_Form.hideLoading(urlForm);
                     
                     // Debug: Log full response
-                    console.log('AJAX Response:', response);
+                    GPTPG_Logger.debug('AJAX Response: ' + JSON.stringify(response));
                     
-                    console.log('AJAX: Response success status:', response.success);
+                    GPTPG_Logger.debug('AJAX: Response success status: ' + response.success);
                     if (response.success) {
                         // Store post ID and post title
                         GPTPG_Form.postId = response.data.post_id;
@@ -359,7 +359,7 @@
                         $('#gptpg-display-url').html('<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>');
                         
                         // Check if this is a duplicate post
-                        console.log('Is duplicate post:', response.data.is_duplicate_post);
+                        GPTPG_Logger.debug('Is duplicate post: ' + response.data.is_duplicate_post);
                         if (response.data.is_duplicate_post) {
                             // Clear any previous duplicate content options
                             $('#gptpg-duplicate-options').remove();
@@ -434,17 +434,17 @@
                             
                         } else {
                             // Navigate to step 2
-                            console.log('FLOW: About to navigate to step 2 (non-duplicate path)');
+                            GPTPG_Logger.debug('About to navigate to step 2 (non-duplicate path)', 'FLOW');
                             
                             // Auto-populate markdown textarea with converted content from backend
                             if (response.data.markdown_content) {
                                 $('#gptpg-markdown-content').val(response.data.markdown_content);
                                 GPTPG_Form.postContent = response.data.markdown_content;
-                                console.log('GPTPG DEBUG: Auto-populated markdown textarea with converted content');
+                                GPTPG_Logger.debug('Auto-populated markdown textarea with converted content');
                             }
                             
                             GPTPG_Form.navigateToStep(2);
-                            console.log('FLOW: After navigation call - current step:', GPTPG_Form.currentStep);
+                            GPTPG_Logger.debug('After navigation call - current step: ' + GPTPG_Form.currentStep, 'FLOW');
                         }
                         
                         // Check for duplicate snippets
@@ -498,8 +498,8 @@
                 },
                 error: function(xhr, status, error) {
                     GPTPG_Form.hideLoading(urlForm);
-                    console.log('AJAX Error:', status, error);
-                    console.log('XHR:', xhr);
+                    GPTPG_Logger.debug('AJAX Error: ' + status + ', ' + error);
+                    GPTPG_Logger.debug('XHR: ' + JSON.stringify(xhr));
                     GPTPG_Form.showError(urlForm, gptpg_vars.error_ajax_failed);
                 }
             });
@@ -541,28 +541,28 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading(markdownForm);
                     
-                    console.log('AJAX: Response success status:', response.success);
+                    GPTPG_Logger.debug('AJAX: Response success status: ' + response.success);
                     if (response.success) {
                         // Store post ID for future requests
                         GPTPG_Form.postId = response.data.post_id;
                         
                         // Debug: Log the entire response data
-                        console.log('GPTPG DEBUG: Step 2 submission response data:', response.data);
+                        GPTPG_Logger.debug('Step 2 submission response data: ' + JSON.stringify(response.data));
                         
                         // Check if we have existing snippets from a duplicate post
                         if (response.data.snippets && response.data.snippets.length > 0) {
-                            console.log('GPTPG DEBUG: Using existing snippets from database:', response.data.snippets);
-                            console.log('GPTPG DEBUG: Number of snippets found:', response.data.snippets.length);
+                            GPTPG_Logger.debug('Using existing snippets from database: ' + JSON.stringify(response.data.snippets));
+                            GPTPG_Logger.debug('Number of snippets found: ' + response.data.snippets.length);
                             // Use existing snippets from the database
                             GPTPG_Form.populateExistingSnippets(response.data.snippets);
                         } 
                         // If no existing snippets, extract GitHub links if any
                         else if (response.data.github_links && response.data.github_links.length > 0) {
-                            console.log('GPTPG DEBUG: Using GitHub links from markdown:', response.data.github_links);
+                            GPTPG_Logger.debug('Using GitHub links from markdown: ' + JSON.stringify(response.data.github_links));
                             GPTPG_Form.populateSnippets(response.data.github_links);
                         } else {
                             // Add empty snippet field if no links or existing snippets found
-                            console.log('GPTPG DEBUG: No snippets or GitHub links found, adding empty field');
+                            GPTPG_Logger.debug('No snippets or GitHub links found, adding empty field');
                             GPTPG_Form.addSnippetField();
                         }
                         
@@ -674,7 +674,7 @@
                 const id = $(this).find('.gptpg-snippet-id').val();
                 const url = $(this).find('.gptpg-snippet-url-input').val();
                 
-                console.log('GPTPG DEBUG: Collecting snippet - ID:', id, 'URL:', url);
+                GPTPG_Logger.debug('Collecting snippet - ID: ' + id + ' URL: ' + url);
                 
                 if (url) {
                     snippets.push({
@@ -684,7 +684,7 @@
                 }
             });
             
-            console.log('GPTPG DEBUG: Final snippets being sent:', snippets);
+            GPTPG_Logger.debug('Final snippets being sent: ' + JSON.stringify(snippets));
             
             // Snippets are now optional since we already have markdown content
             if (snippets.length === 0) {
@@ -712,7 +712,7 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-3'));
                     
-                    console.log('AJAX: Response success status:', response.success);
+                    GPTPG_Logger.debug('AJAX: Response success status: ' + response.success);
                     if (response.success) {
                         // Store snippets
                         GPTPG_Form.snippets = response.data.snippets;
@@ -783,7 +783,7 @@
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-4'));
                     
-                    console.log('AJAX: Response success status:', response.success);
+                    GPTPG_Logger.debug('AJAX: Response success status: ' + response.success);
                     if (response.success) {
                         // Store the prompt
                         GPTPG_Form.prompt = response.data.prompt;
