@@ -40,6 +40,65 @@ class GPTPG_Database {
 	}
 
 	/**
+	 * Add foreign key constraint if it doesn't exist.
+	 *
+	 * @param string $table_name The table to add the constraint to.
+	 * @param string $column_name The column name for the foreign key.
+	 * @param string $ref_table_name The referenced table name.
+	 * @param string $ref_column_name The referenced column name.
+	 */
+	public static function add_foreign_key_constraint( $table_name, $column_name, $ref_table_name, $ref_column_name ) {
+		global $wpdb;
+		
+		// Generate constraint name
+		$constraint_name = 'fk_' . str_replace( $wpdb->prefix, '', $table_name ) . '_' . $column_name;
+		
+		// Check if constraint already exists
+		$existing_constraint = $wpdb->get_var( $wpdb->prepare(
+			"SELECT CONSTRAINT_NAME 
+			 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+			 WHERE TABLE_SCHEMA = %s 
+			   AND TABLE_NAME = %s 
+			   AND COLUMN_NAME = %s 
+			   AND REFERENCED_TABLE_NAME IS NOT NULL",
+			DB_NAME,
+			$table_name,
+			$column_name
+		) );
+		
+		if ( ! $existing_constraint ) {
+			// Add the foreign key constraint (table/column names can't be parameterized)
+			$sql = sprintf(
+				"ALTER TABLE `%s` ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`(`%s`) ON DELETE CASCADE",
+				esc_sql( $table_name ),
+				esc_sql( $constraint_name ),
+				esc_sql( $column_name ),
+				esc_sql( $ref_table_name ),
+				esc_sql( $ref_column_name )
+			);
+			
+			$result = $wpdb->query( $sql );
+			
+			if ( $result === false ) {
+				GPTPG_Logger::warning( 
+					'Failed to add foreign key constraint: ' . $constraint_name . ' - ' . $wpdb->last_error, 
+					'Database'
+				);
+			} else {
+				GPTPG_Logger::info( 
+					'Successfully added foreign key constraint: ' . $constraint_name, 
+					'Database'
+				);
+			}
+		} else {
+			GPTPG_Logger::debug( 
+				'Foreign key constraint already exists: ' . $existing_constraint, 
+				'Database'
+			);
+		}
+	}
+
+	/**
 	 * Check if we need to update the database.
 	 */
 	public static function check_version() {
@@ -91,10 +150,12 @@ class GPTPG_Database {
 			updated_at datetime NOT NULL,
 			PRIMARY KEY (snippet_id),
 			UNIQUE KEY snippet_url (snippet_url(191)),
-			KEY post_id (post_id),
-			FOREIGN KEY (post_id) REFERENCES $table_unique_posts(post_id) ON DELETE CASCADE
+			KEY post_id (post_id)
 		) $charset_collate;";
 		dbDelta( $sql_unique_snippets );
+		
+		// Add foreign key constraint separately to avoid dbDelta issues
+		self::add_foreign_key_constraint( $table_unique_snippets, 'post_id', $table_unique_posts, 'post_id' );
 
 		// Table for storing unique prompts
 		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
