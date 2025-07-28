@@ -31,12 +31,14 @@ The plugin uses customizable prompt templates and handles GitHub API integration
 ## Configuration
 
 1. **Admin Settings Page**: Navigate to Settings > GPT Prompt Generator in the WordPress admin
-2. **Prompt Template**: Customize the template used for generating prompts
+2. **Prompt Template**: Add and customize the template used for generating prompts
 3. **GitHub API Token**: Add a GitHub token to increase API rate limits
 4. **Expiry Time**: Set how long fetched data should be stored
 5. **Front-end Page**: Select a page to automatically include the prompt generator form
 
 ## Usage
+
+**Note**: Before using the form, ensure you have configured a prompt template in the admin settings (Settings > GPT Prompt Generator). The plugin requires a template to function properly.
 
 1. Navigate to the page with the form (either via the shortcode or the selected page)
 2. Enter a Tooltip Recipe Post URL and click "Continue to Next Step"
