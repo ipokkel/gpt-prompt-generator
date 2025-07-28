@@ -6,6 +6,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.13] - 2025-07-28
+### Added
+- Added comprehensive debug logging system with production/review mode toggle
+- Added plugin-specific logs directory under `/wp-content/plugins/gpt-prompt-generator/logs`
+- Added plain text README.txt for accessibility and WordPress repository compatibility
+- Added improved admin menu with debug settings and test logging features
+
+### Changed
+- Completely refactored storage system to use post_id instead of sessions
+- Improved database schema with proper foreign key constraints
+- Updated README documentation with clearer setup instructions
+- Optimized code snippet detection and extraction from post content
+
+### Fixed
+- Fixed SQL error in ALTER TABLE foreign key constraint
+- Fixed JavaScript syntax errors in gptpg-form.js
+- Fixed console logging in production mode (now respects debug settings)
+- Fixed cross-post contamination when entering new post URLs
+- Fixed snippet ID persistence between extraction and prompt generation steps
+
+### Removed
+- Removed all session dependencies for cleaner, more reliable operation
+- Cleaned up numerous orphaned and unused files from codebase
+
+## [0.0.12] - 2025-07-26
+### Added
+- Added debugging features for frontend and backend
+- Added complete orphan file cleanup with documentation
+
+### Changed
+- Improved state management in frontend JavaScript
+- Enhanced error handling throughout the plugin
+
+### Fixed
+- Fixed direct console.log calls in frontend JavaScript to respect debug mode
+- Fixed Data Expiry Time field bug
+
+## [0.0.11] - 2025-07-24
+### Fixed
+- Fixed SQL syntax error in ALTER TABLE for FOREIGN KEY constraint on wp_gptpg_unique_snippets
+
+## [0.0.10] - 2025-07-23
+### Added
+- Added comprehensive logging system with configurable debug modes
+- Added plugin-specific log directory
+
+### Fixed
+- Fixed JavaScript errors in gptpg-form.js preventing form progression
+- Fixed missing document ready handler and initialization
+- Fixed frontend form and browser console logging issues
+
+## [0.0.9] - 2025-07-22
+### Changed
+- Completed transition from session-based to post_id-based workflow
+- Implemented hyperlinked Post URL in Step 2
+
+### Fixed
+- Fixed bug with duplicate/overriding code in ajax_store_markdown causing empty github_links
+- Fixed Step 4 post_id data access bug
+
+## [0.0.8] - 2025-07-21
+### Changed
+- Refactored front-end JavaScript to use post_id instead of session_id
+- Updated all AJAX/handler methods to use post_id
+- Improved localStorage restore notification styling and buttons
+
+### Fixed
+- Fixed persistence issues between steps 3 and 4
+- Fixed type mismatch between snippet_id (int) and existing_ids (string) in backend
+
 ## [0.0.7] - 2025-07-19
 ### Added
 - Added database management tools for table cleanup and migration verification
