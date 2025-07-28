@@ -344,11 +344,11 @@ class GPTPG_GitHub_Handler {
 		
 		// First priority: Extract URLs from HTML DOM (before markdown conversion loses structure)
 		$dom_urls = self::extract_urls_from_html_dom( $content );
-		error_log("GPTPG DEBUG: DOM-based URLs found: " . json_encode($dom_urls));
+		GPTPG_Logger::debug("DOM-based URLs found: " . json_encode($dom_urls), 'GitHub Handler');
 		
 		if ( ! empty( $dom_urls ) ) {
 			// If we found URLs in the DOM structure, prioritize them
-			error_log("GPTPG DEBUG: Using DOM-based URLs (priority)");
+			GPTPG_Logger::debug("Using DOM-based URLs (priority)", 'GitHub Handler');
 			return $dom_urls;
 		}
 		
@@ -372,23 +372,23 @@ class GPTPG_GitHub_Handler {
 		
 		// Remove duplicates
 		$urls = array_unique( $urls );
-		error_log("GPTPG DEBUG: Regex-based URLs found: " . json_encode($urls));
+		GPTPG_Logger::debug("Regex-based URLs found: " . json_encode($urls), 'GitHub Handler');
 		
 		// Smart filtering and prioritization for PMP posts
 		$filtered_urls = self::prioritize_code_snippet_urls( $urls, $content );
-		error_log("GPTPG DEBUG: Filtered URLs after prioritization: " . json_encode($filtered_urls));
+		GPTPG_Logger::debug("Filtered URLs after prioritization: " . json_encode($filtered_urls), 'GitHub Handler');
 		
 		// If no suitable URLs found, try to construct potential snippet URLs based on post URL patterns
 		if ( empty( $filtered_urls ) ) {
-			error_log("GPTPG DEBUG: No suitable URLs found, constructing potential snippet URLs");
+			GPTPG_Logger::info("No suitable URLs found, constructing potential snippet URLs", 'GitHub Handler');
 			$constructed_urls = self::construct_potential_snippet_urls( $content );
-			error_log("GPTPG DEBUG: Constructed URLs: " . json_encode($constructed_urls));
+			GPTPG_Logger::debug("Constructed URLs: " . json_encode($constructed_urls), 'GitHub Handler');
 			if ( ! empty( $constructed_urls ) ) {
 				$filtered_urls = $constructed_urls;
 			}
 		}
 		
-		error_log("GPTPG DEBUG: Final URLs returned: " . json_encode($filtered_urls));
+		GPTPG_Logger::debug("Final URLs returned: " . json_encode($filtered_urls), 'GitHub Handler');
 		return $filtered_urls;
 	}
 	
@@ -402,28 +402,28 @@ class GPTPG_GitHub_Handler {
 		$urls = array();
 		
 		// Debug: Show HTML content structure
-		error_log("GPTPG DEBUG: HTML content length: " . strlen($html_content));
-		error_log("GPTPG DEBUG: HTML preview: " . substr($html_content, 0, 1000) . "...");
+		GPTPG_Logger::debug("HTML content length: " . strlen($html_content), 'GitHub Handler');
+		GPTPG_Logger::debug("HTML preview: " . substr($html_content, 0, 1000) . "...", 'GitHub Handler');
 		
 		// Check if the content contains file-meta in the raw HTML
 		if ( strpos( $html_content, 'file-meta' ) !== false ) {
-			error_log("GPTPG DEBUG: Raw HTML contains 'file-meta' string");
+			GPTPG_Logger::debug("Raw HTML contains 'file-meta' string", 'GitHub Handler');
 		} else {
-			error_log("GPTPG DEBUG: Raw HTML does NOT contain 'file-meta' string");
+			GPTPG_Logger::debug("Raw HTML does NOT contain 'file-meta' string", 'GitHub Handler');
 		}
 		
 		// Check for pmpro-snippets-library in raw HTML
 		if ( strpos( $html_content, 'pmpro-snippets-library' ) !== false ) {
-			error_log("GPTPG DEBUG: Raw HTML contains 'pmpro-snippets-library' string");
+			GPTPG_Logger::debug("Raw HTML contains 'pmpro-snippets-library' string", 'GitHub Handler');
 			
 			// Extract pmpro-snippets-library URLs directly from raw HTML
 			$snippet_urls = self::extract_snippet_urls_from_raw_html( $html_content );
 			if ( ! empty( $snippet_urls ) ) {
-				error_log("GPTPG DEBUG: Found snippet URLs in raw HTML: " . json_encode($snippet_urls));
+				GPTPG_Logger::debug("Found snippet URLs in raw HTML: " . json_encode($snippet_urls), 'GitHub Handler');
 				return $snippet_urls;
 			}
 		} else {
-			error_log("GPTPG DEBUG: Raw HTML does NOT contain 'pmpro-snippets-library' string");
+			GPTPG_Logger::debug("Raw HTML does NOT contain 'pmpro-snippets-library' string", 'GitHub Handler');
 		}
 		
 		// Suppress DOM parsing warnings for malformed HTML
@@ -438,7 +438,7 @@ class GPTPG_GitHub_Handler {
 		// Find elements with class containing 'file-meta'
 		$file_meta_elements = $xpath->query( "//div[contains(@class, 'file-meta')]" );
 		
-		error_log("GPTPG DEBUG: Found " . $file_meta_elements->length . " file-meta containers");
+		GPTPG_Logger::debug("Found " . $file_meta_elements->length . " file-meta containers", 'GitHub Handler');
 		
 		foreach ( $file_meta_elements as $element ) {
 			// Find all links within this file-meta container
@@ -451,7 +451,7 @@ class GPTPG_GitHub_Handler {
 				if ( preg_match( '#https?://github\.com/[^/\s]+/[^/\s]+/#', $href ) ||
 				     preg_match( '#https?://raw\.githubusercontent\.com/#', $href ) ) {
 					
-					error_log("GPTPG DEBUG: Found GitHub URL in file-meta: " . $href);
+					GPTPG_Logger::debug("Found GitHub URL in file-meta: " . $href, 'GitHub Handler');
 					$urls[] = $href;
 				}
 			}
@@ -460,7 +460,7 @@ class GPTPG_GitHub_Handler {
 		// Also look for other common code snippet containers
 		$code_containers = $xpath->query( "//div[contains(@class, 'code-embed')] | //div[contains(@class, 'gist')] | //div[contains(@class, 'snippet')]" );
 		
-		error_log("GPTPG DEBUG: Found " . $code_containers->length . " additional code containers");
+		GPTPG_Logger::debug("Found " . $code_containers->length . " additional code containers", 'GitHub Handler');
 		
 		foreach ( $code_containers as $element ) {
 			$links = $element->getElementsByTagName( 'a' );
@@ -472,7 +472,7 @@ class GPTPG_GitHub_Handler {
 				     preg_match( '#https?://raw\.githubusercontent\.com/#', $href ) ||
 				     preg_match( '#https?://gist\.github\.com/#', $href ) ) {
 					
-					error_log("GPTPG DEBUG: Found GitHub URL in code container: " . $href);
+					GPTPG_Logger::debug("Found GitHub URL in code container: " . $href, 'GitHub Handler');
 					$urls[] = $href;
 				}
 			}
@@ -497,7 +497,7 @@ class GPTPG_GitHub_Handler {
 		
 		// Return prioritized URLs first
 		$final_urls = array_merge( $prioritized_urls, $other_urls );
-		error_log("GPTPG DEBUG: DOM extraction prioritized URLs: " . json_encode($final_urls));
+		GPTPG_Logger::debug("DOM extraction prioritized URLs: " . json_encode($final_urls), 'GitHub Handler');
 		
 		return $final_urls;
 	}
@@ -527,13 +527,13 @@ class GPTPG_GitHub_Handler {
 				foreach ( $matches[0] as $url ) {
 					// Clean up any trailing punctuation or HTML artifacts
 					$url = rtrim( $url, '.,:;!?)"\'>]' );
-					error_log("GPTPG DEBUG: Raw HTML extraction found: " . $url);
+					GPTPG_Logger::debug("Raw HTML extraction found: " . $url, 'GitHub Handler');
 					
 					// If this is a gist embed URL, extract the actual GitHub URL from the target parameter
 					if ( strpos( $url, 'gist.paidmembershipspro.com/embed.js' ) !== false ) {
 						$extracted_url = self::extract_github_url_from_embed( $url );
 						if ( $extracted_url ) {
-							error_log("GPTPG DEBUG: Extracted GitHub URL from embed: " . $extracted_url);
+							GPTPG_Logger::debug("Extracted GitHub URL from embed: " . $extracted_url, 'GitHub Handler');
 							$urls[] = $extracted_url;
 						} else {
 							$urls[] = $url;
@@ -560,7 +560,7 @@ class GPTPG_GitHub_Handler {
 		
 		// Return blob URLs first (more user-friendly), then raw URLs
 		$prioritized_urls = array_merge( $blob_urls, $raw_urls );
-		error_log("GPTPG DEBUG: Raw HTML extraction final URLs: " . json_encode($prioritized_urls));
+		GPTPG_Logger::debug("Raw HTML extraction final URLs: " . json_encode($prioritized_urls), 'GitHub Handler');
 		
 		return $prioritized_urls;
 	}
@@ -588,7 +588,7 @@ class GPTPG_GitHub_Handler {
 		
 		// URL decode the target parameter
 		$target_url = urldecode( $params['target'] );
-		error_log("GPTPG DEBUG: Decoded target URL: " . $target_url);
+		GPTPG_Logger::debug("Decoded target URL: " . $target_url, 'GitHub Handler');
 		
 		// Validate that it's a GitHub URL
 		if ( strpos( $target_url, 'github.com/strangerstudios/pmpro-snippets-library' ) !== false ) {

@@ -1,0 +1,133 @@
+/**
+ * GPT Prompt Generator Admin Styles
+ * 
+ * Styles for the admin settings page
+ */
+
+/* Debug Status Section */
+.gptpg-debug-status {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.gptpg-debug-status h2 {
+    margin-top: 0;
+    color: #333;
+}
+
+/* Mode Badges */
+.gptpg-mode-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 3px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+.gptpg-mode-production {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.gptpg-mode-review {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+.gptpg-mode-debug {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c2c7;
+}
+
+/* Radio Button Styling */
+.form-table fieldset label {
+    display: block;
+    margin-bottom: 15px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fafafa;
+    transition: background-color 0.2s ease;
+}
+
+.form-table fieldset label:hover {
+    background: #f0f0f0;
+}
+
+.form-table fieldset label input[type="radio"] {
+    margin-right: 10px;
+}
+
+.form-table fieldset label strong {
+    display: block;
+    margin-bottom: 5px;
+    color: #333;
+}
+
+.form-table fieldset label .description {
+    margin: 0;
+    color: #666;
+    font-style: italic;
+}
+
+/* Review Mode Guidance */
+#gptpg-review-guidance {
+    margin-top: 20px;
+}
+
+#gptpg-review-guidance .notice {
+    margin: 0;
+    padding: 15px;
+}
+
+#gptpg-review-guidance h4 {
+    margin-top: 0;
+    color: #0073aa;
+}
+
+#gptpg-review-guidance ol {
+    margin-left: 20px;
+}
+
+#gptpg-review-guidance li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+/* Responsive Design */
+@media (max-width: 782px) {
+    .form-table fieldset label {
+        padding: 10px;
+    }
+    
+    .gptpg-debug-status {
+        padding: 15px;
+    }
+    
+    #gptpg-review-guidance .notice {
+        padding: 10px;
+    }
+}
+
+/* Animation for mode switching */
+.gptpg-mode-badge {
+    transition: all 0.3s ease;
+}
+
+/* Settings updated notice enhancement */
+.settings-error.updated {
+    border-left-color: #00ba37;
+}
+
+/* GitHub button styling */
+.button.button-secondary {
+    margin-left: 10px;
+}

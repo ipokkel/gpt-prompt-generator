@@ -236,10 +236,10 @@ class GPTPG_Form_Handler {
 		}
 		
 		// Extract GitHub/Gist links from post content
-		error_log("GPTPG DEBUG: Extracting GitHub links from content (length: " . strlen($post_content) . ")");
-		error_log("GPTPG DEBUG: Content preview: " . substr($post_content, 0, 500) . "...");
+		GPTPG_Logger::debug("Extracting GitHub links from content (length: " . strlen($post_content) . ")", 'Form Handler');
+		GPTPG_Logger::debug("Content preview: " . substr($post_content, 0, 500) . "...", 'Form Handler');
 		$github_links = GPTPG_GitHub_Handler::extract_github_urls( $post_content );
-		error_log("GPTPG DEBUG: Found " . count($github_links) . " GitHub links: " . json_encode($github_links));
+		GPTPG_Logger::info("Found " . count($github_links) . " GitHub links: " . json_encode($github_links), 'Form Handler');
 		
 		// Check if this is a duplicate post and get existing snippets
 		$response_data = array(
@@ -249,17 +249,17 @@ class GPTPG_Form_Handler {
 		
 		// Get post ID from URL to check for existing snippets
 		$post_id = GPTPG_Database::post_exists($post_url);
-		error_log("GPTPG DEBUG: ajax_store_markdown - Post ID for URL {$post_url}: " . ($post_id ? $post_id : 'NOT FOUND'));
+		GPTPG_Logger::info("ajax_store_markdown - Post ID for URL {$post_url}: " . ($post_id ? $post_id : 'NOT FOUND'), 'Form Handler');
 		if ($post_id) {
 			// Fetch existing snippets for this post
 			$existing_snippets = GPTPG_Database::get_snippets_by_post_id($post_id);
-			error_log("GPTPG DEBUG: Found " . count($existing_snippets) . " existing snippets for post ID {$post_id}");
+			GPTPG_Logger::info("Found " . count($existing_snippets) . " existing snippets for post ID {$post_id}", 'Form Handler');
 			if (!empty($existing_snippets)) {
 				// Prepare snippets for JSON response
 				$snippet_data = array();
 				foreach ($existing_snippets as $snippet) {
 					$snippet_url = isset($snippet->snippet_url) ? $snippet->snippet_url : '';
-					error_log("GPTPG DEBUG: Processing snippet: " . $snippet_url);
+					GPTPG_Logger::debug("Processing snippet: " . $snippet_url, 'Form Handler');
 					$snippet_data[] = array(
 						'id'         => isset($snippet->id) ? $snippet->id : (isset($snippet->snippet_id) ? $snippet->snippet_id : 0),
 						'url'        => $snippet_url,
@@ -269,12 +269,12 @@ class GPTPG_Form_Handler {
 				}
 				$response_data['snippets'] = $snippet_data;
 				$response_data['has_snippets'] = true;
-				error_log("GPTPG DEBUG: Added snippets to response: " . json_encode($snippet_data));
+				GPTPG_Logger::info("Added snippets to response: " . json_encode($snippet_data), 'Form Handler');
 			} else {
-				error_log("GPTPG DEBUG: No snippets found for post ID {$post_id}");
+				GPTPG_Logger::info("No snippets found for post ID {$post_id}", 'Form Handler');
 			}
 		} else {
-			error_log("GPTPG DEBUG: No post found for URL {$post_url}");
+			GPTPG_Logger::warning("No post found for URL {$post_url}", 'Form Handler');
 		}
 
 		// Success response
@@ -327,7 +327,7 @@ class GPTPG_Form_Handler {
 		
 		// Debug: Check structure of existing snippets
 		if ( ! empty( $existing_snippets ) ) {
-			error_log("GPTPG DEBUG: First existing snippet structure: " . json_encode($existing_snippets[0]));
+			GPTPG_Logger::debug("First existing snippet structure: " . json_encode($existing_snippets[0]), 'Form Handler');
 		}
 		
 		// Try different field names for ID extraction
@@ -340,19 +340,19 @@ class GPTPG_Form_Handler {
 		// Convert to integers to ensure type consistency
 		$existing_ids = array_map( 'intval', $existing_ids );
 		
-		error_log("GPTPG DEBUG: Existing snippet IDs extracted: " . json_encode($existing_ids));
+		GPTPG_Logger::debug("Existing snippet IDs extracted: " . json_encode($existing_ids), 'Form Handler');
 
 		// Process snippets
 		$processed_ids = array();
 		$errors        = array();
 
 		// Process each snippet
-		error_log("GPTPG DEBUG: ajax_process_snippets - Processing " . count($snippets) . " snippets");
+		GPTPG_Logger::info("ajax_process_snippets - Processing " . count($snippets) . " snippets", 'Form Handler');
 		foreach ( $snippets as $snippet ) {
 			// Sanitize data
 			$snippet_id  = isset( $snippet['id'] ) ? intval( $snippet['id'] ) : 0;
 			$snippet_url = isset( $snippet['url'] ) ? esc_url_raw( $snippet['url'] ) : '';
-			error_log("GPTPG DEBUG: Processing snippet: ID={$snippet_id}, URL={$snippet_url}");
+			GPTPG_Logger::debug("Processing snippet: ID={$snippet_id}, URL={$snippet_url}", 'Form Handler');
 
 			// Skip if URL is empty
 			if ( empty( $snippet_url ) ) {
@@ -390,7 +390,7 @@ class GPTPG_Form_Handler {
 			} else {
 				// Add new snippet
 				$post_id = isset($post_data->post_id) ? $post_data->post_id : 0; // Add property check to prevent PHP warning
-				error_log("GPTPG DEBUG: About to store snippet - post_id={$post_id}, url={$snippet_url}, type={$url_type}");
+				GPTPG_Logger::debug("About to store snippet - post_id={$post_id}, url={$snippet_url}, type={$url_type}", 'Form Handler');
 				$snippet_result = GPTPG_Database::store_snippet(
 					$post_id, // Using post_id from normalized schema with safety check
 					$snippet_url,
@@ -398,7 +398,7 @@ class GPTPG_Form_Handler {
 					$code_content,
 					true // User edited
 				);
-				error_log("GPTPG DEBUG: store_snippet result: " . json_encode($snippet_result));
+				GPTPG_Logger::debug("store_snippet result: " . json_encode($snippet_result), 'Form Handler');
 				
 				if ( isset($snippet_result['snippet_id']) ) {
 					$new_snippet_id = $snippet_result['snippet_id'];
@@ -863,7 +863,7 @@ class GPTPG_Form_Handler {
 			'details'   => $details,
 		);
 
-		error_log( 'GPTPG Fetch Log: ' . wp_json_encode( $log_entry ) );
+		GPTPG_Logger::debug( 'Fetch Log: ' . wp_json_encode( $log_entry ), 'Form Handler' );
 	}
 
 	/**
@@ -902,7 +902,7 @@ class GPTPG_Form_Handler {
 		} catch ( Exception $e ) {
 			// Log the error for debugging
 			if ( get_option( 'gptpg_debug_logging', false ) ) {
-				error_log( 'GPTPG HTML to Markdown conversion error: ' . $e->getMessage() );
+				GPTPG_Logger::error( 'HTML to Markdown conversion error: ' . $e->getMessage(), 'Form Handler' );
 			}
 		}
 
@@ -942,7 +942,7 @@ class GPTPG_Form_Handler {
 		// Basic validation checks
 		if ( empty( $markdown ) ) {
 			if ( get_option( 'gptpg_debug_logging', false ) ) {
-				error_log( 'GPTPG: Markdown conversion failed - empty result' );
+				GPTPG_Logger::warning( 'Markdown conversion failed - empty result', 'Form Handler' );
 			}
 			return false;
 		}
@@ -951,7 +951,7 @@ class GPTPG_Form_Handler {
 		$markdown_text_length = strlen( strip_tags( $markdown ) );
 		if ( $markdown_text_length < 20 ) {
 			if ( get_option( 'gptpg_debug_logging', false ) ) {
-				error_log( 'GPTPG: Markdown conversion failed - too short: ' . $markdown_text_length . ' characters' );
+				GPTPG_Logger::warning( 'Markdown conversion failed - too short: ' . $markdown_text_length . ' characters', 'Form Handler' );
 			}
 			return false;
 		}
@@ -960,13 +960,13 @@ class GPTPG_Form_Handler {
 		$original_text_length = strlen( strip_tags( $original_html ) );
 		if ( $original_text_length > 500 && $markdown_text_length < ( $original_text_length * 0.2 ) ) {
 			if ( get_option( 'gptpg_debug_logging', false ) ) {
-				error_log( 'GPTPG: Markdown conversion failed - too short compared to original. Original: ' . $original_text_length . ', Markdown: ' . $markdown_text_length );
+				GPTPG_Logger::warning( 'Markdown conversion failed - too short compared to original. Original: ' . $original_text_length . ', Markdown: ' . $markdown_text_length, 'Form Handler' );
 			}
 			return false;
 		}
 
 		if ( get_option( 'gptpg_debug_logging', false ) ) {
-			error_log( 'GPTPG: Markdown conversion validated successfully. Length: ' . $markdown_text_length );
+			GPTPG_Logger::info( 'Markdown conversion validated successfully. Length: ' . $markdown_text_length, 'Form Handler' );
 		}
 
 		return true;

@@ -89,6 +89,11 @@ class GPTPG_Plugin {
 
 		// Register cleanup scheduled event
 		add_action( 'gptpg_cleanup_expired_data', array( 'GPTPG_Database', 'cleanup_expired_data' ) );
+
+		// Initialize admin interface
+		if ( is_admin() ) {
+			GPTPG_Admin::init();
+		}
 	}
 
 	/**
@@ -163,6 +168,7 @@ class GPTPG_Plugin {
 		$script_vars = array(
 			'ajax_url' => admin_url( 'admin-ajax.php' ),
 			'nonce'    => wp_create_nonce( 'gptpg-nonce' ),
+			'debug'    => GPTPG_Logger::get_frontend_debug_info(),
 			'i18n'     => array(
 				'error_fetch'      => esc_html__( 'Error fetching post. Please check the URL.', 'gpt-prompt-generator' ),
 				'error_snippets'   => esc_html__( 'Error processing code snippets.', 'gpt-prompt-generator' ),

@@ -26,6 +26,7 @@ class GPTPG_Admin {
 		// Register settings page
 		add_action( 'admin_menu', array( __CLASS__, 'register_settings_page' ) );
 		
+		
 		// Register settings
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
 		
@@ -101,7 +102,7 @@ class GPTPG_Admin {
 			'gptpg_settings_group',
 			'gptpg_expiry_time',
 			array(
-				'sanitize_callback' => 'absint',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_expiry_time' ),
 			)
 		);
 		
@@ -126,6 +127,25 @@ class GPTPG_Admin {
 		register_setting(
 			'gptpg_settings_group',
 			'gptpg_debug_logging',
+			array(
+				'sanitize_callback' => array( __CLASS__, 'sanitize_checkbox' ),
+				'default' => false,
+			)
+		);
+		
+		// New Debug Logging Settings
+		register_setting(
+			'gptpg_settings_group',
+			'gptpg_debug_mode',
+			array(
+				'sanitize_callback' => array( __CLASS__, 'sanitize_debug_mode' ),
+				'default' => 'review',
+			)
+		);
+		
+		register_setting(
+			'gptpg_settings_group',
+			'gptpg_use_plugin_logs',
 			array(
 				'sanitize_callback' => array( __CLASS__, 'sanitize_checkbox' ),
 				'default' => false,
@@ -165,6 +185,14 @@ class GPTPG_Admin {
 			'gptpg_content_fetching_section',
 			__( 'Content Fetching Settings', 'gpt-prompt-generator' ),
 			array( __CLASS__, 'render_content_fetching_section' ),
+			'gptpg-settings'
+		);
+		
+		// New Debug Logging Section
+		add_settings_section(
+			'gptpg_debug_section',
+			__( 'Debug & Logging Settings', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_debug_section' ),
 			'gptpg-settings'
 		);
 
@@ -216,6 +244,23 @@ class GPTPG_Admin {
 			array( __CLASS__, 'render_debug_logging_field' ),
 			'gptpg-settings',
 			'gptpg_content_fetching_section'
+		);
+		
+		// New Debug Logging Fields
+		add_settings_field(
+			'gptpg_debug_mode',
+			__( 'Debug Mode', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_debug_mode_field' ),
+			'gptpg-settings',
+			'gptpg_debug_section'
+		);
+		
+		add_settings_field(
+			'gptpg_use_plugin_logs',
+			__( 'Use Plugin Log Files', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_use_plugin_logs_field' ),
+			'gptpg-settings',
+			'gptpg_debug_section'
 		);
 	}
 
@@ -426,8 +471,17 @@ class GPTPG_Admin {
 	 * Render the expiry time field.
 	 */
 	public static function render_expiry_time_field() {
-		// Get option value in seconds, convert to minutes
-		$expiry_time = get_option( 'gptpg_expiry_time', 3600 ) / 60;
+		$stored_value = get_option( 'gptpg_expiry_time', 3600 );
+		
+		// Detect if the stored value is in minutes (incorrect) or seconds (correct)
+		// Values less than 300 are likely stored incorrectly as minutes instead of seconds
+		if ( $stored_value < 300 ) {
+			// Value is likely stored as minutes, use it directly
+			$expiry_time = max( 5, $stored_value );
+		} else {
+			// Value is stored as seconds, convert to minutes for display
+			$expiry_time = $stored_value / 60;
+		}
 		?>
 		<input type="number" id="gptpg_expiry_time" name="gptpg_expiry_time" value="<?php echo esc_attr( $expiry_time ); ?>" class="small-text" min="5" step="1">
 		<p class="description">
@@ -565,6 +619,190 @@ class GPTPG_Admin {
 	 */
 	public static function sanitize_checkbox( $value ) {
 		return ! empty( $value );
+	}
+
+	/**
+	 * Sanitize debug mode value.
+	 *
+	 * @param string $value The debug mode value.
+	 * @return string Sanitized debug mode value.
+	 */
+	public static function sanitize_debug_mode( $value ) {
+		$allowed_modes = array( 'production', 'review', 'debug' );
+		return in_array( $value, $allowed_modes, true ) ? $value : 'review';
+	}
+
+	/**
+	 * Sanitize expiry time value.
+	 * Convert minutes input to seconds for storage.
+	 *
+	 * @param mixed $value The expiry time value in minutes.
+	 * @return int Sanitized expiry time value in seconds.
+	 */
+	public static function sanitize_expiry_time( $value ) {
+		$minutes = absint( $value );
+		
+		// Minimum 5 minutes
+		if ( $minutes < 5 ) {
+			$minutes = 5;
+		}
+		
+		// Convert minutes to seconds for storage
+		return $minutes * 60;
+	}
+
+	/**
+	 * Render the debug section description.
+	 */
+	public static function render_debug_section() {
+		$current_mode = GPTPG_Logger::get_debug_mode();
+		$mode_source = GPTPG_Logger::get_debug_mode_source();
+		$is_logging = GPTPG_Logger::is_logging_enabled();
+		$console_debug = GPTPG_Logger::is_console_debug_enabled();
+		
+		$mode_colors = array(
+			'production' => '#28a745',
+			'review' => '#ffc107',
+			'debug' => '#dc3545'
+		);
+		
+		$mode_color = isset( $mode_colors[ $current_mode ] ) ? $mode_colors[ $current_mode ] : '#6c757d';
+		?>
+		<p><?php esc_html_e( 'Configure debug logging settings to help with troubleshooting and issue reporting.', 'gpt-prompt-generator' ); ?></p>
+		
+		<div class="gptpg-debug-status" style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid <?php echo esc_attr( $mode_color ); ?>;">
+			<h4 style="margin-top: 0;"><?php esc_html_e( 'Current Debug Status', 'gpt-prompt-generator' ); ?></h4>
+			<p><strong><?php esc_html_e( 'Mode:', 'gpt-prompt-generator' ); ?></strong> 
+				<span class="gptpg-mode-badge" style="background: <?php echo esc_attr( $mode_color ); ?>; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; text-transform: uppercase;">
+					<?php echo esc_html( ucfirst( $current_mode ) ); ?>
+				</span>
+			</p>
+			<p><strong><?php esc_html_e( 'Source:', 'gpt-prompt-generator' ); ?></strong> <?php echo esc_html( $mode_source ); ?></p>
+			<p><strong><?php esc_html_e( 'Logging:', 'gpt-prompt-generator' ); ?></strong> <?php echo $is_logging ? '<span style="color: #28a745;">✓ Enabled</span>' : '<span style="color: #dc3545;">✗ Disabled</span>'; ?></p>
+			<p><strong><?php esc_html_e( 'Console Debug:', 'gpt-prompt-generator' ); ?></strong> <?php echo $console_debug ? '<span style="color: #28a745;">✓ Enabled</span>' : '<span style="color: #dc3545;">✗ Disabled</span>'; ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render debug mode field
+	 */
+	public static function render_debug_mode_field() {
+		$current_mode = get_option( 'gptpg_debug_mode', 'review' );
+		$is_disabled = defined( 'GPTPG_DEBUG_MODE' );
+		?>
+		<fieldset>
+			<label>
+				<input type="radio" name="gptpg_debug_mode" value="production" <?php checked( $current_mode, 'production' ); ?> <?php disabled( $is_disabled ); ?> />
+				<strong><?php esc_html_e( 'Production', 'gpt-prompt-generator' ); ?></strong>
+				<p class="description"><?php esc_html_e( 'No debug logging (clean user experience)', 'gpt-prompt-generator' ); ?></p>
+			</label>
+			<br><br>
+			<label>
+				<input type="radio" name="gptpg_debug_mode" value="review" <?php checked( $current_mode, 'review' ); ?> <?php disabled( $is_disabled ); ?> />
+				<strong><?php esc_html_e( 'Review', 'gpt-prompt-generator' ); ?></strong>
+				<p class="description"><?php esc_html_e( 'Info, warning, and error logging (recommended for testing and support)', 'gpt-prompt-generator' ); ?></p>
+			</label>
+			<br><br>
+			<label>
+				<input type="radio" name="gptpg_debug_mode" value="debug" <?php checked( $current_mode, 'debug' ); ?> <?php disabled( $is_disabled ); ?> />
+				<strong><?php esc_html_e( 'Debug', 'gpt-prompt-generator' ); ?></strong>
+				<p class="description"><?php esc_html_e( 'All logging including debug messages (for developers)', 'gpt-prompt-generator' ); ?></p>
+			</label>
+		</fieldset>
+
+		<?php if ( $is_disabled ) : ?>
+			<p class="description" style="color: #d63384;">
+				<?php esc_html_e( 'Debug mode is controlled by the GPTPG_DEBUG_MODE constant and cannot be changed here.', 'gpt-prompt-generator' ); ?>
+			</p>
+		<?php endif; ?>
+
+		<div id="gptpg-review-guidance" style="<?php echo ( $current_mode === 'review' && ! $is_disabled ) ? '' : 'display: none;'; ?>">
+			<div class="notice notice-info inline">
+				<h4><?php esc_html_e( '🧪 Review Mode - Issue Reporting Guide', 'gpt-prompt-generator' ); ?></h4>
+				<p><?php esc_html_e( 'Review mode enables detailed logging to help identify and resolve issues. When reporting problems, please collect the following information:', 'gpt-prompt-generator' ); ?></p>
+				
+				<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+					<div>
+						<h5><?php esc_html_e( '📊 Debug Information to Collect:', 'gpt-prompt-generator' ); ?></h5>
+						<ol>
+							<li><strong><?php esc_html_e( 'Browser Console Logs:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'Press F12 → Console tab → Filter for "GPTPG" → Copy all messages', 'gpt-prompt-generator' ); ?></small></li>
+							<li><strong><?php esc_html_e( 'WordPress Debug Log:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'Check /wp-content/debug.log for GPTPG entries (timestamp important)', 'gpt-prompt-generator' ); ?></small></li>
+							<li><strong><?php esc_html_e( 'Environment Info:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'WordPress version, browser type, plugin version', 'gpt-prompt-generator' ); ?></small></li>
+							<li><strong><?php esc_html_e( 'Steps to Reproduce:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'Exact sequence of actions that trigger the issue', 'gpt-prompt-generator' ); ?></small></li>
+							<li><strong><?php esc_html_e( 'Expected vs Actual:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'What should happen vs what actually happens', 'gpt-prompt-generator' ); ?></small></li>
+						</ol>
+					</div>
+					
+					<div>
+						<h5><?php esc_html_e( '🔧 Quick Debug Tips:', 'gpt-prompt-generator' ); ?></h5>
+						<ul style="list-style-type: none; padding-left: 0;">
+							<li>💡 <strong><?php esc_html_e( 'Console Filtering:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'In browser console, type "GPTPG" in filter box to show only plugin messages', 'gpt-prompt-generator' ); ?></small></li>
+							<li>📁 <strong><?php esc_html_e( 'Log File Location:', 'gpt-prompt-generator' ); ?></strong><br>
+								<code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;"><?php echo esc_html( WP_CONTENT_DIR . '/debug.log' ); ?></code></li>
+							<li>⏰ <strong><?php esc_html_e( 'Timestamp Matching:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'Note the exact time when issue occurs for easier log correlation', 'gpt-prompt-generator' ); ?></small></li>
+							<li>🔄 <strong><?php esc_html_e( 'Reproducibility:', 'gpt-prompt-generator' ); ?></strong><br>
+								<small><?php esc_html_e( 'Try to reproduce the issue 2-3 times to confirm consistency', 'gpt-prompt-generator' ); ?></small></li>
+						</ul>
+					</div>
+				</div>
+				
+				<p style="text-align: center; margin-top: 20px;">
+					<a href="https://github.com/strangerstudios/gpt-prompt-generator/issues/new" target="_blank" class="button button-primary button-large">
+						🚀 <?php esc_html_e( 'Report Issue on GitHub', 'gpt-prompt-generator' ); ?>
+					</a>
+					<a href="https://github.com/strangerstudios/gpt-prompt-generator/issues" target="_blank" class="button button-secondary" style="margin-left: 10px;">
+						📋 <?php esc_html_e( 'View Existing Issues', 'gpt-prompt-generator' ); ?>
+					</a>
+				</p>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render use plugin logs field
+	 */
+	public static function render_use_plugin_logs_field() {
+		$checked = get_option( 'gptpg_use_plugin_logs', false );
+		$is_disabled = defined( 'GPTPG_USE_PLUGIN_LOGS' );
+		$plugin_log_path = GPTPG_Logger::get_plugin_log_path();
+		$upload_dir = wp_upload_dir();
+		$log_url = str_replace( $upload_dir['basedir'], $upload_dir['baseurl'], dirname( $plugin_log_path ) );
+		?>
+		<input type="checkbox" id="gptpg_use_plugin_logs" name="gptpg_use_plugin_logs" value="1" <?php checked( $checked ); ?> <?php disabled( $is_disabled ); ?>>
+		<label for="gptpg_use_plugin_logs"><?php esc_html_e( 'Use plugin-specific log files instead of WordPress debug log', 'gpt-prompt-generator' ); ?></label>
+		
+		<div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+			<p><strong><?php esc_html_e( 'Plugin Log File Location:', 'gpt-prompt-generator' ); ?></strong></p>
+			<code style="background: white; padding: 5px; border-radius: 3px; display: block; margin: 5px 0;"><?php echo esc_html( $plugin_log_path ); ?></code>
+			
+			<p><strong><?php esc_html_e( 'Features:', 'gpt-prompt-generator' ); ?></strong></p>
+			<ul style="margin-left: 20px;">
+				<li>🔒 <?php esc_html_e( 'Protected by .htaccess (not web-accessible)', 'gpt-prompt-generator' ); ?></li>
+				<li>🔄 <?php esc_html_e( 'Automatic rotation when files exceed 10MB', 'gpt-prompt-generator' ); ?></li>
+				<li>📅 <?php esc_html_e( 'Timestamped entries', 'gpt-prompt-generator' ); ?></li>
+				<li>🧹 <?php esc_html_e( 'Old log cleanup (keeps .old backups)', 'gpt-prompt-generator' ); ?></li>
+			</ul>
+		</div>
+		
+		<?php if ( $is_disabled ) : ?>
+			<p class="description" style="color: #d63384;">
+				<?php esc_html_e( 'Plugin log files are controlled by the GPTPG_USE_PLUGIN_LOGS constant and cannot be changed here.', 'gpt-prompt-generator' ); ?>
+			</p>
+		<?php endif; ?>
+		
+		<p class="description">
+			<?php esc_html_e( 'When enabled, plugin logs will be written to a dedicated log file instead of the WordPress debug log. This helps keep plugin logs separate and organized.', 'gpt-prompt-generator' ); ?>
+		</p>
+		<?php
 	}
 }
 

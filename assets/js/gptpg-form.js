@@ -7,6 +7,73 @@
 (function($) {
     'use strict';
 
+    // Debug logging utility - respects backend debug mode settings
+    let GPTPG_Logger = {
+        debugInfo: null,
+        
+        init: function() {
+            // Get debug info from localized script variables
+            this.debugInfo = (typeof gptpg_vars !== 'undefined' && gptpg_vars.debug) ? gptpg_vars.debug : {
+                mode: 'production',
+                logging: false,
+                console_debug: false
+            };
+        },
+        
+        // Check if console logging is enabled
+        isLoggingEnabled: function() {
+            return this.debugInfo && this.debugInfo.console_debug;
+        },
+        
+        // Check if debug mode is active
+        isDebugMode: function() {
+            return this.debugInfo && this.debugInfo.mode === 'debug';
+        },
+        
+        // Check if review mode is active
+        isReviewMode: function() {
+            return this.debugInfo && this.debugInfo.mode === 'review';
+        },
+        
+        // Log debug messages (only in debug mode)
+        debug: function(message, context) {
+            if (this.isLoggingEnabled() && this.isDebugMode()) {
+                const prefix = context ? `GPTPG [${context}] DEBUG:` : 'GPTPG DEBUG:';
+                console.log(prefix, message);
+            }
+        },
+        
+        // Log info messages (in review and debug modes)
+        info: function(message, context) {
+            if (this.isLoggingEnabled()) {
+                const prefix = context ? `GPTPG [${context}] INFO:` : 'GPTPG INFO:';
+                console.log(prefix, message);
+            }
+        },
+        
+        // Log warning messages (in review and debug modes)
+        warning: function(message, context) {
+            if (this.isLoggingEnabled()) {
+                const prefix = context ? `GPTPG [${context}] WARNING:` : 'GPTPG WARNING:';
+                console.warn(prefix, message);
+            }
+        },
+        
+        // Log error messages (in review and debug modes)
+        error: function(message, context) {
+            if (this.isLoggingEnabled()) {
+                const prefix = context ? `GPTPG [${context}] ERROR:` : 'GPTPG ERROR:';
+                console.error(prefix, message);
+            }
+        },
+        
+        // Always log critical errors (even in production)
+        critical: function(message, context) {
+            const prefix = context ? `GPTPG [${context}] CRITICAL:` : 'GPTPG CRITICAL:';
+            console.error(prefix, message);
+        }
+    };
+
     // Form state
     let GPTPG_Form = {
         currentStep: 1,
@@ -837,36 +904,17 @@
             container.find('.gptpg-warning-message').hide();
         }
     };
-    
-    // Initialize form on document ready
+
+    // Initialize when document is ready
     $(document).ready(function() {
-        console.log('GPTPG Form: Document ready triggered');
-        
-        // Debug form elements
-        console.log('Step 1 element exists:', $('#gptpg-step-1').length > 0);
-        console.log('Step 1 display state:', $('#gptpg-step-1').css('display'));
-        console.log('URL input exists:', $('#gptpg-post-url').length > 0);
+        // Initialize logger
+        GPTPG_Logger.init();
         
         // Initialize form
         GPTPG_Form.init();
         
-        // Debug after init
-        console.log('After init - Step 1 display state:', $('#gptpg-step-1').css('display'));
-        
-        // Force display of step 1 if no step is visible (fallback)
-        setTimeout(function() {
-            console.log('GPTPG Form: Running visibility check');
-            console.log('Visible steps:', $('.gptpg-step:visible').length);
-            
-            if ($('.gptpg-step:visible').length === 0) {
-                console.log('No form step visible, forcing display of step 1');
-                $('#gptpg-step-1').show();
-                $('.gptpg-step-indicator').removeClass('active');
-                $('#gptpg-step-indicator-1').addClass('active');
-                
-                console.log('After force - Step 1 display state:', $('#gptpg-step-1').css('display'));
-            }
-        }, 500); // Small delay to ensure other scripts have run
+        // Log successful initialization
+        GPTPG_Logger.info('GPT Prompt Generator form initialized successfully', 'INIT');
     });
-    
+
 })(jQuery);

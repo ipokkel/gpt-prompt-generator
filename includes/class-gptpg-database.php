@@ -471,7 +471,7 @@ class GPTPG_Database {
 	public static function get_snippets_by_post_id( $post_id ) {
 		global $wpdb;
 		
-		error_log("GPTPG DEBUG: get_snippets_by_post_id called with post_id: {$post_id}");
+		GPTPG_Logger::debug("get_snippets_by_post_id called with post_id: {$post_id}", 'Database');
 		
 		// Query snippets directly by post_id from the unique_snippets table
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
@@ -481,16 +481,16 @@ class GPTPG_Database {
 			$post_id
 		);
 		
-		error_log("GPTPG DEBUG: Using direct post_id query: {$query}");
+		GPTPG_Logger::debug("Using direct post_id query: {$query}", 'Database');
 		$results = $wpdb->get_results( $query );
-		error_log("GPTPG DEBUG: Direct query returned " . count($results) . " results");
+		GPTPG_Logger::debug("Direct query returned " . count($results) . " results", 'Database');
 		
 		if ( !empty( $results ) ) {
-			error_log("GPTPG DEBUG: Found " . count($results) . " snippets for post ID {$post_id}");
+			GPTPG_Logger::info("Found " . count($results) . " snippets for post ID {$post_id}", 'Database');
 			return $results;
 		}
 		
-		error_log("GPTPG DEBUG: No snippets found for post ID {$post_id}");
+		GPTPG_Logger::info("No snippets found for post ID {$post_id}", 'Database');
 		return array();
 	}
 

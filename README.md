@@ -79,6 +79,131 @@ Supported browsers include:
 - Safari
 - Microsoft Edge
 
+## Debug Logging & Issue Reporting
+
+The GPT Prompt Generator includes a comprehensive debug logging system to help identify and resolve issues during testing and development.
+
+### Debug Modes
+
+The plugin supports three debug modes that can be configured via **Settings > GPT Prompt Generator**:
+
+- **🟢 Production Mode**: No debug logging (clean user experience)
+- **🟡 Review Mode**: Info, warning, and error logging (recommended for testing and support)
+- **🔴 Debug Mode**: All logging including debug messages (for developers)
+
+### Configuration Priority
+
+Debug mode can be controlled through multiple methods with the following priority:
+
+1. **`GPTPG_DEBUG_MODE` constant** (highest priority - can be set in `wp-config.php`)
+2. **WordPress option** `gptpg_debug_mode` (controlled via admin UI)
+3. **`WP_DEBUG` constant** (fallback)
+
+#### Setting Debug Mode via wp-config.php
+
+```php
+// Force debug mode (highest priority)
+define( 'GPTPG_DEBUG_MODE', 'debug' );    // Full debug logging
+define( 'GPTPG_DEBUG_MODE', 'review' );   // Review mode logging
+define( 'GPTPG_DEBUG_MODE', 'production' ); // No logging
+```
+
+### Plugin-Specific Log Files (Optional)
+
+By default, logs are written to WordPress's standard debug log. You can enable plugin-specific log files:
+
+#### Enable via Constant
+```php
+// Enable plugin-specific log files
+define( 'GPTPG_USE_PLUGIN_LOGS', true );
+```
+
+#### Log File Location
+When enabled, logs are written to:
+```
+/wp-content/uploads/gptpg-logs/gptpg-debug.log
+```
+
+**Features:**
+- 🔒 **Protected by .htaccess** - Log files are not web-accessible
+- 🔄 **Automatic rotation** - Files are rotated when they exceed 10MB
+- 📅 **Timestamped entries** - Each log entry includes a timestamp
+- 🧹 **Old log cleanup** - Previous logs are kept as `.old` backups
+
+### Issue Reporting Guide
+
+When reporting issues, please enable **Review Mode** and collect the following information:
+
+#### 📊 Debug Information to Collect
+
+1. **Browser Console Logs**
+   - Press `F12` → Console tab → Filter for "GPTPG" → Copy all messages
+
+2. **WordPress Debug Log**
+   - Check `/wp-content/debug.log` for GPTPG entries (timestamp important)
+   - Or check plugin logs at `/wp-content/uploads/gptpg-logs/gptpg-debug.log`
+
+3. **Environment Information**
+   - WordPress version
+   - Browser type and version
+   - Plugin version
+   - Debug mode setting
+
+4. **Steps to Reproduce**
+   - Exact sequence of actions that trigger the issue
+
+5. **Expected vs Actual Results**
+   - What should happen vs what actually happens
+
+#### 🔧 Quick Debug Tips
+
+- **Console Filtering**: In browser console, type "GPTPG" in filter box to show only plugin messages
+- **Log File Location**: `/wp-content/debug.log` or `/wp-content/uploads/gptpg-logs/gptpg-debug.log`
+- **Timestamp Matching**: Note the exact time when issue occurs for easier log correlation
+- **Reproducibility**: Try to reproduce the issue 2-3 times to confirm consistency
+
+#### 📋 Issue Report Template
+
+```markdown
+**Bug Report: GPT Prompt Generator**
+
+**Environment:**
+- WordPress Version: 
+- Plugin Version: 
+- Browser: 
+- Debug Mode: Review
+
+**Steps to Reproduce:**
+1. 
+2. 
+3. 
+
+**Expected Result:**
+
+
+**Actual Result:**
+
+
+**Browser Console Logs:**
+```
+[Paste GPTPG console messages here]
+```
+
+**WordPress Debug Log:**
+```
+[Paste relevant GPTPG log entries here]
+```
+
+**Additional Context:**
+
+```
+
+#### 🚀 Create Issue
+
+[Report Issue on GitHub](https://github.com/strangerstudios/gpt-prompt-generator/issues/new) | [View Existing Issues](https://github.com/strangerstudios/gpt-prompt-generator/issues)
+
+---
+
 ## Developer Notes
 
 The plugin uses custom database tables to store:
