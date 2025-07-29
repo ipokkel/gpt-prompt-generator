@@ -7,12 +7,12 @@ Generate a customized ChatGPT prompt template based on Tooltip Recipe Posts, inc
 GPT Prompt Generator is an internal WordPress plugin that streamlines the process of creating ChatGPT prompts for rewriting Tooltip Recipe Posts. It features a multi-step form interface that allows users to:
 
 1. Submit a Tooltip Recipe Post URL
-2. Manually paste the post content in Markdown format (with browser extension suggestions for converting HTML to Markdown)
+2. Review and edit the automatically converted Markdown content (or manually paste content if automatic conversion fails or for posts behind paywalls)
 3. Review, add, edit, or remove GitHub code snippet links (optional)
 4. Generate a formatted prompt with both the post content and code snippets
 5. Copy the generated prompt to clipboard for use with ChatGPT
 
-The plugin uses customizable prompt templates and handles GitHub API integration for code retrieval, while allowing users to manually supply markdown content for posts that may be behind paywalls or require authentication.
+The plugin automatically attempts to fetch and convert post content to Markdown format, significantly reducing manual work. It uses customizable prompt templates and handles GitHub API integration for code retrieval, while providing fallback options for manual content entry when automatic conversion is not possible.
 
 ## Installation
 
@@ -42,7 +42,9 @@ The plugin uses customizable prompt templates and handles GitHub API integration
 
 1. Navigate to the page with the form (either via the shortcode or the selected page)
 2. Enter a Tooltip Recipe Post URL and click "Continue to Next Step"
-3. Manually paste the post title and content in Markdown format
+   - The plugin automatically fetches and converts the post content to Markdown
+3. Review and edit the automatically converted Markdown content as needed
+   - For posts behind paywalls or if automatic conversion fails, manually paste the content
    - Use browser extensions suggested by the form to convert HTML content to Markdown if needed
 4. Add, edit, or remove GitHub/Gist code snippet links (optional)
 5. Click "Process Snippets" if using code snippets, or proceed directly to generating the prompt
@@ -202,7 +204,7 @@ When reporting issues, please enable **Review Mode** and collect the following i
 
 #### 🚀 Create Issue
 
-[Report Issue on GitHub](https://github.com/strangerstudios/gpt-prompt-generator/issues/new) | [View Existing Issues](https://github.com/strangerstudios/gpt-prompt-generator/issues)
+[Report Issue on GitHub](https://github.com/ipokkel/gpt-prompt-generator/issues/new) | [View Existing Issues](https://github.com/ipokkel/gpt-prompt-generator/issues)
 
 ---
 

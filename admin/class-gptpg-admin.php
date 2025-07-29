@@ -755,10 +755,10 @@ class GPTPG_Admin {
 				</div>
 				
 				<p style="text-align: center; margin-top: 20px;">
-					<a href="https://github.com/strangerstudios/gpt-prompt-generator/issues/new" target="_blank" class="button button-primary button-large">
+					<a href="https://github.com/ipokkel/gpt-prompt-generator/issues/new" target="_blank" class="button button-primary button-large">
 						🚀 <?php esc_html_e( 'Report Issue on GitHub', 'gpt-prompt-generator' ); ?>
 					</a>
-					<a href="https://github.com/strangerstudios/gpt-prompt-generator/issues" target="_blank" class="button button-secondary" style="margin-left: 10px;">
+					<a href="https://github.com/ipokkel/gpt-prompt-generator/issues" target="_blank" class="button button-secondary" style="margin-left: 10px;">
 						📋 <?php esc_html_e( 'View Existing Issues', 'gpt-prompt-generator' ); ?>
 					</a>
 				</p>

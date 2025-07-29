@@ -514,9 +514,9 @@ class GPTPG_GitHub_Handler {
 		// Specific patterns for pmpro-snippets-library URLs
 		$patterns = array(
 			// GitHub blob URLs for pmpro-snippets-library
-			'#https?://github\.com/strangerstudios/pmpro-snippets-library/blob/[^\s"\'>]+#i',
+			'#https?://github\.com/ipokkel/pmpro-snippets-library/blob/[^\s"\'>]+#i',
 			// Raw URLs for pmpro-snippets-library
-			'#https?://raw\.githubusercontent\.com/strangerstudios/pmpro-snippets-library/[^\s"\'>]+#i',
+			'#https?://raw\.githubusercontent\.com/ipokkel/pmpro-snippets-library/[^\s"\'>]+#i',
 			// Alternative patterns that might be embedded
 			'#https?://[^\s"\'>]*pmpro-snippets-library[^\s"\'>]*#i',
 		);
@@ -591,7 +591,7 @@ class GPTPG_GitHub_Handler {
 		GPTPG_Logger::debug("Decoded target URL: " . $target_url, 'GitHub Handler');
 		
 		// Validate that it's a GitHub URL
-		if ( strpos( $target_url, 'github.com/strangerstudios/pmpro-snippets-library' ) !== false ) {
+		if ( strpos( $target_url, 'github.com/ipokkel/pmpro-snippets-library' ) !== false ) {
 			return $target_url;
 		}
 		
@@ -716,14 +716,14 @@ class GPTPG_GitHub_Handler {
 		// Common patterns for PMP code snippets
 		$snippet_patterns = array(
 			// Standard pattern
-			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/misc/{$slug}.php",
+			"https://github.com/ipokkel/pmpro-snippets-library/blob/dev/misc/{$slug}.php",
 			// Alternative patterns with different prefixes
-			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/memberlite/{$slug}.php",
-			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/frontend/{$slug}.php",
-			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/admin/{$slug}.php",
+			"https://github.com/ipokkel/pmpro-snippets-library/blob/dev/memberlite/{$slug}.php",
+			"https://github.com/ipokkel/pmpro-snippets-library/blob/dev/frontend/{$slug}.php",
+			"https://github.com/ipokkel/pmpro-snippets-library/blob/dev/admin/{$slug}.php",
 			// With memberlite prefix variations
-			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/memberlite/memberlite-{$slug}.php",
-			"https://github.com/strangerstudios/pmpro-snippets-library/blob/dev/memberlite/memberlite-remove-selector-from-memberlite-defaults.php",
+			"https://github.com/ipokkel/pmpro-snippets-library/blob/dev/memberlite/memberlite-{$slug}.php",
+			"https://github.com/ipokkel/pmpro-snippets-library/blob/dev/memberlite/memberlite-remove-selector-from-memberlite-defaults.php",
 		);
 		
 		// Try to verify these URLs exist (basic check)

@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: GPT Prompt Generator
- * Plugin URI: https://www.strangerstudios.com/plugins/gpt-prompt-generator/
+ * Plugin URI: https://www.ipokkel.com/plugins/gpt-prompt-generator/
  * Description: Generate a ChatGPT Prompt for rewriting a Tooltip Recipe Post.
  * Version: 0.0.12
  * Author: Stranger Studios
- * Author URI: https://www.strangerstudios.com
+ * Author URI: https://www.ipokkel.com
  * Text Domain: gpt-prompt-generator
  * Domain Path: /languages
  * License: GPL-2.0+

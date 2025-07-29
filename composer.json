@@ -1,5 +1,5 @@
 {
-    "name": "strangerstudios/gpt-prompt-generator",
+    "name": "ipokkel/gpt-prompt-generator",
     "description": "Generate a ChatGPT Prompt for rewriting a Tooltip Recipe Post",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
@@ -14,7 +14,7 @@
     "authors": [
         {
             "name": "Stranger Studios",
-            "email": "info@strangerstudios.com"
+            "email": "info@ipokkel.com"
         }
     ],
     "minimum-stability": "stable",
