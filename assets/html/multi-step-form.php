@@ -70,17 +70,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 		<details id="gptpg-browser-extensions" class="gptpg-notification">
 			<summary><strong><?php esc_html_e( 'Need help converting to Markdown?', 'gpt-prompt-generator' ); ?></strong></summary>
 			<p><?php esc_html_e( 'Use one of these browser extensions to convert the page to Markdown:', 'gpt-prompt-generator' ); ?></p>
-			
+
 			<h4><?php esc_html_e( 'Chrome Extensions', 'gpt-prompt-generator' ); ?></h4>
 			<ul>
 				<li><a href="https://chromewebstore.google.com/detail/webpage-to-markdown/ajeinonckioeekcfanjndliandidilid" target="_blank"><?php esc_html_e( 'Webpage to Markdown', 'gpt-prompt-generator' ); ?></a></li>
 				<li><a href="https://chromewebstore.google.com/detail/markdownload-markdown-web/pcmpcfapbekmbjjkdalcgopdkipoggdi" target="_blank"><?php esc_html_e( 'MarkDownload - Markdown Web Clipper', 'gpt-prompt-generator' ); ?></a></li>
+				<li><a href="https://chrome.google.com/webstore/detail/paste-as-markdown/lmelpnmpkekjahgdihfajfebaddffokl" target="_blank"><?php esc_html_e( 'Paste as Markdown', 'gpt-prompt-generator' ); ?></a> (*Prefered)</li>
 			</ul>
 			
 			<h4><?php esc_html_e( 'Firefox Extensions', 'gpt-prompt-generator' ); ?></h4>
 			<ul>
 				<li><a href="https://addons.mozilla.org/en-US/firefox/addon/markdownload/" target="_blank"><?php esc_html_e( 'MarkDownload - Markdown Web Clipper', 'gpt-prompt-generator' ); ?></a></li>
 				<li><a href="https://addons.mozilla.org/en-US/firefox/addon/llmfeeder/" target="_blank"><?php esc_html_e( 'LLMFeeder - Webpage to Markdown', 'gpt-prompt-generator' ); ?></a></li>
+				<li><a href="https://addons.mozilla.org/en-US/firefox/addon/paste-as-markdown/" target="_blank"><?php esc_html_e( 'Paste as Markdown', 'gpt-prompt-generator' ); ?></a> (*Prefered)</li>
 			</ul>
 			
 			<h4><?php esc_html_e( 'Edge Extensions', 'gpt-prompt-generator' ); ?></h4>
