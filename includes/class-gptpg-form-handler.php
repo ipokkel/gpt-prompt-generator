@@ -26,8 +26,8 @@ class GPTPG_Form_Handler {
 		// Register AJAX handlers
 		add_action( 'wp_ajax_gptpg_store_markdown', array( __CLASS__, 'ajax_store_markdown' ) );
 		add_action( 'wp_ajax_nopriv_gptpg_store_markdown', array( __CLASS__, 'ajax_store_markdown' ) );
-		add_action( 'wp_ajax_gptpg_fetch_post_url', array( __CLASS__, 'fetch_post_url' ) );
-		add_action( 'wp_ajax_nopriv_gptpg_fetch_post_url', array( __CLASS__, 'fetch_post_url' ) );
+		add_action( 'wp_ajax_gptpg_fetch_post', array( __CLASS__, 'ajax_fetch_post' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_fetch_post', array( __CLASS__, 'ajax_fetch_post' ) );
 		add_action( 'wp_ajax_gptpg_process_markdown', array( __CLASS__, 'process_markdown' ) );
 		add_action( 'wp_ajax_nopriv_gptpg_process_markdown', array( __CLASS__, 'process_markdown' ) );
 		add_action( 'wp_ajax_gptpg_process_snippets', array( __CLASS__, 'ajax_process_snippets' ) );
@@ -38,6 +38,8 @@ class GPTPG_Form_Handler {
 		add_action( 'wp_ajax_nopriv_gptpg_reset_form', array( __CLASS__, 'reset_form' ) );
 		add_action( 'wp_ajax_gptpg_verify_session', array( __CLASS__, 'verify_session' ) );
 		add_action( 'wp_ajax_nopriv_gptpg_verify_session', array( __CLASS__, 'verify_session' ) );
+		add_action( 'wp_ajax_gptpg_get_fresh_nonce', array( __CLASS__, 'get_fresh_nonce' ) );
+		add_action( 'wp_ajax_nopriv_gptpg_get_fresh_nonce', array( __CLASS__, 'get_fresh_nonce' ) );
 
 		// Check if GPTPG_Database class exists and initialize it
 		if ( class_exists( 'GPTPG_Database' ) ) {
@@ -57,6 +59,9 @@ class GPTPG_Form_Handler {
 		}
 		
 		$nonce = sanitize_text_field( wp_unslash( $_POST['nonce'] ) );
+		
+
+		
 		if ( ! wp_verify_nonce( $nonce, 'gptpg-nonce' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Security check failed - invalid nonce.', 'gpt-prompt-generator' ) ) );
 		}
@@ -235,11 +240,19 @@ class GPTPG_Form_Handler {
 			wp_send_json_error( array( 'message' => __( 'Failed to store markdown content.', 'gpt-prompt-generator' ) ) );
 		}
 		
-		// Extract GitHub/Gist links from post content
-		GPTPG_Logger::debug("Extracting GitHub links from content (length: " . strlen($post_content) . ")", 'Form Handler');
-		GPTPG_Logger::debug("Content preview: " . substr($post_content, 0, 500) . "...", 'Form Handler');
-		$github_links = GPTPG_GitHub_Handler::extract_github_urls( $post_content );
-		GPTPG_Logger::info("Found " . count($github_links) . " GitHub links: " . json_encode($github_links), 'Form Handler');
+		// Use GitHub links from Step 1 if provided, otherwise extract from content
+		$github_links = array();
+		if ( isset( $_POST['github_links'] ) && is_array( $_POST['github_links'] ) ) {
+			// Use the actual detected GitHub links from Step 1
+			$github_links = array_map( 'esc_url_raw', $_POST['github_links'] );
+			GPTPG_Logger::info("Using GitHub links from Step 1: " . json_encode($github_links), 'Form Handler');
+		} else {
+			// Fallback: extract from content (should not happen in normal flow)
+			GPTPG_Logger::debug("No GitHub links from Step 1, extracting from content (length: " . strlen($post_content) . ")", 'Form Handler');
+			GPTPG_Logger::debug("Content preview: " . substr($post_content, 0, 500) . "...", 'Form Handler');
+			$github_links = GPTPG_GitHub_Handler::extract_github_urls( $post_content );
+			GPTPG_Logger::info("Extracted " . count($github_links) . " GitHub links: " . json_encode($github_links), 'Form Handler');
+		}
 		
 		// Check if this is a duplicate post and get existing snippets
 		$response_data = array(
@@ -1152,6 +1165,21 @@ class GPTPG_Form_Handler {
 		$content = rtrim( $content );
 
 		 return $content;
+	}
+
+	/**
+	 * AJAX handler to get a fresh nonce.
+	 * This helps resolve nonce timing/context issues.
+	 */
+	public static function get_fresh_nonce() {
+		// No nonce verification needed for getting a fresh nonce
+		// This is a safe operation that just generates a new nonce
+		
+		$fresh_nonce = wp_create_nonce( 'gptpg-nonce' );
+		
+
+		
+		wp_send_json_success( array( 'nonce' => $fresh_nonce ) );
 	}
 
 

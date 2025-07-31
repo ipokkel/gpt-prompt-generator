@@ -3,7 +3,7 @@
  * Plugin Name: GPT Prompt Generator
  * Plugin URI: https://www.ipokkel.com/plugins/gpt-prompt-generator/
  * Description: Generate a ChatGPT Prompt for rewriting a Tooltip Recipe Post.
- * Version: 0.0.12
+ * Version: 0.0.14
  * Author: Stranger Studios
  * Author URI: https://www.ipokkel.com
  * Text Domain: gpt-prompt-generator
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'GPTPG_VERSION', '0.0.12' );
+define( 'GPTPG_VERSION', '0.0.14' );
 define( 'GPTPG_PLUGIN_FILE', __FILE__ );
 define( 'GPTPG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GPTPG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

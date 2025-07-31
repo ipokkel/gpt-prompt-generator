@@ -6,6 +6,23 @@ and this project adheres to Semantic Versioning (https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [0.0.14] - 2025-07-31
+### Fixed
+- Fixed nonce validation errors across all AJAX steps (Step 1-4)
+- Fixed GitHub snippet link extraction to show only relevant URLs in Step 3
+- Fixed gist embed URL decoding to extract actual GitHub URLs from target parameter
+- Fixed GitHub organization name from 'ipokkel' to 'strangerstudios' in all extraction patterns
+- Fixed Step 2 data flow to preserve GitHub links detected in Step 1
+- Fixed fallback to potential snippet URL generation when actual links are available
+
+### Changed
+- Updated debug mode from 'debug' to 'production' for cleaner operation
+- Improved GitHub URL extraction logic to handle gist embed URLs properly
+- Enhanced Step 1→2→3 data flow to maintain GitHub link consistency
+
+### Removed
+- Removed debug logging to WordPress debug.log while preserving internal plugin debugging
+
 ## [0.0.13] - 2025-07-28
 ### Added
 - Added comprehensive debug logging system with production/review mode toggle

@@ -331,15 +331,29 @@
             // Show loading indicator
             GPTPG_Form.showLoading(urlForm);
             
-            // Send AJAX request to fetch post data
+            // First, get a fresh nonce to avoid timing/context issues
             $.ajax({
                 url: gptpg_vars.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'gptpg_fetch_post',
-                    nonce: gptpg_vars.nonce,
-                    post_url: url
+                    action: 'gptpg_get_fresh_nonce'
                 },
+                success: function(nonceResponse) {
+                    GPTPG_Logger.debug('Fresh nonce response: ' + JSON.stringify(nonceResponse));
+                    
+                    if (nonceResponse.success && nonceResponse.data.nonce) {
+                        const freshNonce = nonceResponse.data.nonce;
+                        GPTPG_Logger.debug('Using fresh nonce: ' + freshNonce);
+                        
+                        // Now send AJAX request to fetch post data with fresh nonce
+                        $.ajax({
+                            url: gptpg_vars.ajax_url,
+                            type: 'POST',
+                            data: {
+                                action: 'gptpg_fetch_post',
+                                nonce: freshNonce,
+                                post_url: url
+                            },
                 success: function(response) {
                     GPTPG_Form.hideLoading(urlForm);
                     
@@ -351,6 +365,9 @@
                         // Store post ID and post title
                         GPTPG_Form.postId = response.data.post_id;
                         GPTPG_Form.postTitle = response.data.post_title;
+                        
+                        // Store GitHub links from Step 1 for use in Step 2
+                        GPTPG_Form.githubLinks = response.data.github_links || [];
                         
                         // Save state to localStorage
                         GPTPG_Form.saveState();
@@ -495,12 +512,26 @@
                             GPTPG_Form.showError(urlForm, errorMessage);
                         }
                     }
+                        },
+                        error: function(xhr, status, error) {
+                            GPTPG_Form.hideLoading(urlForm);
+                            GPTPG_Logger.debug('Fetch Post AJAX Error: ' + status + ', ' + error);
+                            GPTPG_Logger.debug('XHR: ' + JSON.stringify(xhr));
+                            GPTPG_Form.showError(urlForm, gptpg_vars.error_ajax_failed);
+                        }
+                    });
+                    } else {
+                        // Fresh nonce request failed
+                        GPTPG_Form.hideLoading(urlForm);
+                        GPTPG_Logger.error('Failed to get fresh nonce: ' + JSON.stringify(nonceResponse));
+                        GPTPG_Form.showError(urlForm, 'Failed to get security token. Please refresh the page and try again.');
+                    }
                 },
                 error: function(xhr, status, error) {
                     GPTPG_Form.hideLoading(urlForm);
-                    GPTPG_Logger.debug('AJAX Error: ' + status + ', ' + error);
+                    GPTPG_Logger.debug('Fresh Nonce AJAX Error: ' + status + ', ' + error);
                     GPTPG_Logger.debug('XHR: ' + JSON.stringify(xhr));
-                    GPTPG_Form.showError(urlForm, gptpg_vars.error_ajax_failed);
+                    GPTPG_Form.showError(urlForm, 'Failed to get security token. Please refresh the page and try again.');
                 }
             });
         },
@@ -528,16 +559,31 @@
             GPTPG_Form.postTitle = ''; // Empty title
             GPTPG_Form.postContent = content;
             
-            // Send AJAX request to store content in session
+            // First, get a fresh nonce to avoid timing/context issues
             $.ajax({
                 url: gptpg_vars.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'gptpg_store_markdown',
-                    nonce: gptpg_vars.nonce,
-                    post_url: GPTPG_Form.postUrl,
-                    post_content: content
+                    action: 'gptpg_get_fresh_nonce'
                 },
+                success: function(nonceResponse) {
+                    GPTPG_Logger.debug('Step 2 - Fresh nonce response: ' + JSON.stringify(nonceResponse));
+                    
+                    if (nonceResponse.success && nonceResponse.data.nonce) {
+                        const freshNonce = nonceResponse.data.nonce;
+                        GPTPG_Logger.debug('Step 2 - Using fresh nonce: ' + freshNonce);
+                        
+                        // Send AJAX request to store content in session with fresh nonce
+                        $.ajax({
+                            url: gptpg_vars.ajax_url,
+                            type: 'POST',
+                            data: {
+                                action: 'gptpg_store_markdown',
+                                nonce: freshNonce,
+                                post_url: GPTPG_Form.postUrl,
+                                post_content: content,
+                                github_links: GPTPG_Form.githubLinks || []
+                            },
                 success: function(response) {
                     GPTPG_Form.hideLoading(markdownForm);
                     
@@ -571,10 +617,23 @@
                     } else {
                         GPTPG_Form.showError(markdownForm, response.data.message || 'Failed to process markdown content.');
                     }
+                        },
+                        error: function() {
+                            GPTPG_Form.hideLoading(markdownForm);
+                            GPTPG_Form.showError(markdownForm, gptpg_vars.error_ajax_failed);
+                        }
+                    });
+                    } else {
+                        // Fresh nonce request failed
+                        GPTPG_Form.hideLoading(markdownForm);
+                        GPTPG_Logger.error('Step 2 - Failed to get fresh nonce: ' + JSON.stringify(nonceResponse));
+                        GPTPG_Form.showError(markdownForm, 'Failed to get security token. Please refresh the page and try again.');
+                    }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
                     GPTPG_Form.hideLoading(markdownForm);
-                    GPTPG_Form.showError(markdownForm, gptpg_vars.error_ajax_failed);
+                    GPTPG_Logger.debug('Step 2 - Fresh Nonce AJAX Error: ' + status + ', ' + error);
+                    GPTPG_Form.showError(markdownForm, 'Failed to get security token. Please refresh the page and try again.');
                 }
             });
         },
@@ -699,16 +758,30 @@
             // Clear previous errors
             this.clearError($('#gptpg-step-3'));
             
-            // AJAX request to process snippets
+            // First, get a fresh nonce to avoid timing/context issues
             $.ajax({
                 url: gptpg_vars.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'gptpg_process_snippets',
-                    nonce: gptpg_vars.nonce,
-                    post_id: this.postId,
-                    snippets: snippets
+                    action: 'gptpg_get_fresh_nonce'
                 },
+                success: function(nonceResponse) {
+                    GPTPG_Logger.debug('Step 3 - Fresh nonce response: ' + JSON.stringify(nonceResponse));
+                    
+                    if (nonceResponse.success && nonceResponse.data.nonce) {
+                        const freshNonce = nonceResponse.data.nonce;
+                        GPTPG_Logger.debug('Step 3 - Using fresh nonce: ' + freshNonce);
+                        
+                        // AJAX request to process snippets with fresh nonce
+                        $.ajax({
+                            url: gptpg_vars.ajax_url,
+                            type: 'POST',
+                            data: {
+                                action: 'gptpg_process_snippets',
+                                nonce: freshNonce,
+                                post_id: GPTPG_Form.postId,
+                                snippets: snippets
+                            },
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-3'));
                     
@@ -755,10 +828,23 @@
                     } else {
                         GPTPG_Form.showError($('#gptpg-step-3'), response.data.message);
                     }
+                        },
+                        error: function() {
+                            GPTPG_Form.hideLoading($('#gptpg-step-3'));
+                            GPTPG_Form.showError($('#gptpg-step-3'), 'Failed to connect to the server. Please try again.');
+                        }
+                    });
+                    } else {
+                        // Fresh nonce request failed
+                        GPTPG_Form.hideLoading($('#gptpg-step-3'));
+                        GPTPG_Logger.error('Step 3 - Failed to get fresh nonce: ' + JSON.stringify(nonceResponse));
+                        GPTPG_Form.showError($('#gptpg-step-3'), 'Failed to get security token. Please refresh the page and try again.');
+                    }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
                     GPTPG_Form.hideLoading($('#gptpg-step-3'));
-                    GPTPG_Form.showError($('#gptpg-step-3'), 'Failed to connect to the server. Please try again.');
+                    GPTPG_Logger.debug('Step 3 - Fresh Nonce AJAX Error: ' + status + ', ' + error);
+                    GPTPG_Form.showError($('#gptpg-step-3'), 'Failed to get security token. Please refresh the page and try again.');
                 }
             });
         },
@@ -771,15 +857,29 @@
             // Clear previous errors
             this.clearError($('#gptpg-step-4'));
             
-            // AJAX request to generate prompt
+            // First, get a fresh nonce to avoid timing/context issues
             $.ajax({
                 url: gptpg_vars.ajax_url,
                 type: 'POST',
                 data: {
-                    action: 'gptpg_generate_prompt',
-                    nonce: gptpg_vars.nonce,
-                    post_id: this.postId
+                    action: 'gptpg_get_fresh_nonce'
                 },
+                success: function(nonceResponse) {
+                    GPTPG_Logger.debug('Step 4 - Fresh nonce response: ' + JSON.stringify(nonceResponse));
+                    
+                    if (nonceResponse.success && nonceResponse.data.nonce) {
+                        const freshNonce = nonceResponse.data.nonce;
+                        GPTPG_Logger.debug('Step 4 - Using fresh nonce: ' + freshNonce);
+                        
+                        // AJAX request to generate prompt with fresh nonce
+                        $.ajax({
+                            url: gptpg_vars.ajax_url,
+                            type: 'POST',
+                            data: {
+                                action: 'gptpg_generate_prompt',
+                                nonce: freshNonce,
+                                post_id: GPTPG_Form.postId
+                            },
                 success: function(response) {
                     GPTPG_Form.hideLoading($('#gptpg-step-4'));
                     
@@ -808,10 +908,23 @@
                     } else {
                         GPTPG_Form.showError($('#gptpg-step-4'), response.data.message);
                     }
+                        },
+                        error: function() {
+                            GPTPG_Form.hideLoading($('#gptpg-step-4'));
+                            GPTPG_Form.showError($('#gptpg-step-4'), 'Failed to connect to the server. Please try again.');
+                        }
+                    });
+                    } else {
+                        // Fresh nonce request failed
+                        GPTPG_Form.hideLoading($('#gptpg-step-4'));
+                        GPTPG_Logger.error('Step 4 - Failed to get fresh nonce: ' + JSON.stringify(nonceResponse));
+                        GPTPG_Form.showError($('#gptpg-step-4'), 'Failed to get security token. Please refresh the page and try again.');
+                    }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
                     GPTPG_Form.hideLoading($('#gptpg-step-4'));
-                    GPTPG_Form.showError($('#gptpg-step-4'), 'Failed to connect to the server. Please try again.');
+                    GPTPG_Logger.debug('Step 4 - Fresh Nonce AJAX Error: ' + status + ', ' + error);
+                    GPTPG_Form.showError($('#gptpg-step-4'), 'Failed to get security token. Please refresh the page and try again.');
                 }
             });
         },
