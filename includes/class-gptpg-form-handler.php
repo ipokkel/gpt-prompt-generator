@@ -36,8 +36,6 @@ class GPTPG_Form_Handler {
 		add_action( 'wp_ajax_nopriv_gptpg_generate_prompt', array( __CLASS__, 'ajax_generate_prompt' ) );
 		add_action( 'wp_ajax_gptpg_reset_form', array( __CLASS__, 'reset_form' ) );
 		add_action( 'wp_ajax_nopriv_gptpg_reset_form', array( __CLASS__, 'reset_form' ) );
-		add_action( 'wp_ajax_gptpg_verify_session', array( __CLASS__, 'verify_session' ) );
-		add_action( 'wp_ajax_nopriv_gptpg_verify_session', array( __CLASS__, 'verify_session' ) );
 		add_action( 'wp_ajax_gptpg_get_fresh_nonce', array( __CLASS__, 'get_fresh_nonce' ) );
 		add_action( 'wp_ajax_nopriv_gptpg_get_fresh_nonce', array( __CLASS__, 'get_fresh_nonce' ) );
 
