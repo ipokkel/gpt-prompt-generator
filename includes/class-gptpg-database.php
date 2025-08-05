@@ -23,11 +23,20 @@ class GPTPG_Database {
 	 * Initialize the class.
 	 */
 	public static function init() {
-		// Register activation hook to create tables.
-		register_activation_hook( GPTPG_PLUGIN_FILE, array( __CLASS__, 'create_tables' ) );
+		// Register activation hook for fresh install.
+		register_activation_hook( GPTPG_PLUGIN_FILE, array( __CLASS__, 'fresh_install' ) );
 		
 		// Check if we need to update the database.
 		add_action( 'plugins_loaded', array( __CLASS__, 'check_version' ) );
+	}
+
+	/**
+	 * Fresh install of the plugin.
+	 * This will reset the database to ensure a clean state.
+	 */
+	public static function fresh_install() {
+		// Reset database to ensure clean state
+		self::reset_database();
 	}
 
 	/**
@@ -161,14 +170,19 @@ class GPTPG_Database {
 		$table_unique_prompts = $wpdb->prefix . 'gptpg_unique_prompts';
 		$sql_unique_prompts = "CREATE TABLE $table_unique_prompts (
 			prompt_id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			post_id bigint(20) unsigned NOT NULL,
 			prompt_content longtext NOT NULL,
 			prompt_hash varchar(32) GENERATED ALWAYS AS (MD5(prompt_content)) STORED,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY (prompt_id),
-			UNIQUE KEY prompt_hash (prompt_hash)
+			UNIQUE KEY prompt_hash (prompt_hash),
+			KEY post_id (post_id)
 		) $charset_collate;";
 		dbDelta( $sql_unique_prompts );
+		
+		// Add foreign key constraint for prompts table
+		self::add_foreign_key_constraint( $table_unique_prompts, 'post_id', $table_unique_posts, 'post_id' );
 
 		// Update database version
 		update_option( 'gptpg_db_version', GPTPG_VERSION );
@@ -588,7 +602,6 @@ class GPTPG_Database {
 		global $wpdb;
 		
 		$table_unique_snippets = $wpdb->prefix . 'gptpg_unique_snippets';
-		$table_session_snippets = $wpdb->prefix . 'gptpg_session_snippets';
 		$current_time = current_time( 'mysql', true );
 		
 		// Update the snippet content
@@ -616,6 +629,33 @@ class GPTPG_Database {
 		);
 		
 		return ($snippet_updated !== false);
+	}
+
+	/**
+	 * Reset all plugin data and tables.
+	 * This will drop all plugin tables and recreate them, effectively making it a fresh install.
+	 */
+	public static function reset_database() {
+		global $wpdb;
+		
+		// List of all current plugin tables
+		$tables = array(
+			'gptpg_unique_posts',
+			'gptpg_unique_snippets', 
+			'gptpg_unique_prompts'
+		);
+		
+		// Drop each table
+		foreach ($tables as $table) {
+			$table_name = $wpdb->prefix . $table;
+			$wpdb->query("DROP TABLE IF EXISTS `$table_name`");
+		}
+		
+		// Reset database version option
+		delete_option('gptpg_db_version');
+		
+		// Recreate tables
+		self::create_tables();
 	}
 
 

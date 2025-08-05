@@ -27,7 +27,7 @@ define( 'GPTPG_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 if ( ! defined( 'GPTPG_DEBUG_MODE' ) ) {
 	// Possible values: 'production', 'review', 'debug'
 	// Default to 'review' for testing phase, will change to 'production' for public release
-	define( 'GPTPG_DEBUG_MODE', 'production' );
+	define( 'GPTPG_DEBUG_MODE', 'debug' );
 }
 
 // Include core classes
