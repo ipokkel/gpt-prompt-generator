@@ -31,6 +31,7 @@ if ( 'remove' === $data_retention ) {
 		'gptpg_debug_mode',
 		'gptpg_use_plugin_logs',
 		'gptpg_uninstall_data_retention',
+		'gptpg_db_version',  // Database version tracking
 	);
 
 	foreach ( $option_names as $option_name ) {
