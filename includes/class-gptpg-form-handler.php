@@ -82,11 +82,11 @@ class GPTPG_Form_Handler {
 			wp_send_json_error( array( 'message' => $post_data->get_error_message() ) );
 		}
 
-		// Convert HTML to Markdown - load Composer dependencies if available
+		// Convert HTML to Markdown - load local library if available
 		if ( ! class_exists( 'League\HTMLToMarkdown\HtmlConverter' ) ) {
-			$autoload_path = GPTPG_PLUGIN_DIR . 'vendor/autoload.php';
-			if ( file_exists( $autoload_path ) ) {
-				require_once $autoload_path;
+			$local_autoload_path = GPTPG_PLUGIN_DIR . 'lib/html-to-markdown/autoload.php';
+			if ( file_exists( $local_autoload_path ) ) {
+				require_once $local_autoload_path;
 			}
 		}
 
