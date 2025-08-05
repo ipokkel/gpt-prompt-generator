@@ -20,6 +20,7 @@ and this project adheres to Semantic Versioning (https://semver.org/spec/v2.0.0.
 - Fixed database schema mismatch for prompts table (missing post_id column)
 - Added foreign key constraint for prompts table
 - Fixed debug mode/admin form value mismatch causing confusing status display
+- Fixed missing admin notifications by adding proper settings_errors() call to settings page
 
 ### Removed
 - Removed hardcoded GPTPG_DEBUG_MODE constant from plugin files

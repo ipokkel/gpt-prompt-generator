@@ -35,6 +35,8 @@ class GPTPG_Admin {
 		
 		// Enqueue admin scripts and styles
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_assets' ) );
+		
+		// WordPress will handle settings updated notifications automatically
 	}
 
 	/**
@@ -135,7 +137,7 @@ class GPTPG_Admin {
 		
 		// New Debug Logging Settings
 		register_setting(
-			'gptpg_settings',
+			'gptpg_settings_group',
 			'gptpg_debug_mode',
 			array(
 				'sanitize_callback' => array( __CLASS__, 'sanitize_debug_mode' ),
@@ -360,6 +362,11 @@ class GPTPG_Admin {
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<p><?php esc_html_e( 'Configure settings for the GPT Prompt Generator plugin.', 'gpt-prompt-generator' ); ?></p>
+			
+			<?php
+			// Show WordPress settings notifications (Settings saved, errors, etc.)
+			settings_errors();
+			?>
 			
 			<form action="options.php" method="post">
 				<?php
@@ -837,6 +844,8 @@ if ( ! defined( 'GPTPG_DEBUG_MODE' ) ) {
 		</p>
 		<?php
 	}
+
+
 }
 
 // Initialize the admin class
