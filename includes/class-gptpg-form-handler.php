@@ -82,9 +82,12 @@ class GPTPG_Form_Handler {
 			wp_send_json_error( array( 'message' => $post_data->get_error_message() ) );
 		}
 
-		// Convert HTML to Markdown
+		// Convert HTML to Markdown - load Composer dependencies if available
 		if ( ! class_exists( 'League\HTMLToMarkdown\HtmlConverter' ) ) {
-			require_once GPTPG_PLUGIN_DIR . 'vendor/autoload.php';
+			$autoload_path = GPTPG_PLUGIN_DIR . 'vendor/autoload.php';
+			if ( file_exists( $autoload_path ) ) {
+				require_once $autoload_path;
+			}
 		}
 
 		// Enhanced HTML to Markdown conversion
