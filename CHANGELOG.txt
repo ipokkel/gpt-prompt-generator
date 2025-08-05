@@ -12,11 +12,16 @@ and this project adheres to Semantic Versioning (https://semver.org/spec/v2.0.0.
 - Added comprehensive uninstall.php script that honors admin data retention preferences
 - Added detailed UI explanations and warnings for uninstall data handling options
 - Added proper radio button interface for uninstall data retention setting
+- Implemented manual inclusion of league/html-to-markdown library for distribution
+- Added local autoloader for html-to-markdown library
 
 ### Fixed
 - Fixed foreign key constraint errors during plugin activation/deactivation
 - Fixed table drop order in reset_database() and uninstall logic (child tables before parent tables)
 - Fixed database error "Cannot drop table 'wp_gptpg_unique_posts' referenced by a foreign key constraint"
+- Fixed fatal error when installing plugin from GitHub ZIP (missing vendor directory)
+- Fixed incomplete uninstall cleanup - ensure gptpg_db_version option is deleted
+- Removed Composer dependency requirement - plugin now works out-of-the-box
 
 ## [0.0.15] - 2025-08-05
 ### Added

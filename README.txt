@@ -26,7 +26,6 @@ REQUIREMENTS
 
 - WordPress 5.6 or higher
 - PHP 7.4 or higher
-- Composer (for installing dependencies)
 
 CONFIGURATION
 
