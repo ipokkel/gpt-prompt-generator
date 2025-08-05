@@ -638,11 +638,11 @@ class GPTPG_Database {
 	public static function reset_database() {
 		global $wpdb;
 		
-		// List of all current plugin tables
+		// List of all current plugin tables (order matters: drop child tables before parent tables)
 		$tables = array(
-			'gptpg_unique_posts',
-			'gptpg_unique_snippets', 
-			'gptpg_unique_prompts'
+			'gptpg_unique_snippets', // Child table - has foreign key to posts
+			'gptpg_unique_prompts',  // Child table - has foreign key to posts
+			'gptpg_unique_posts'     // Parent table - must be dropped last
 		);
 		
 		// Drop each table

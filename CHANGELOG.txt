@@ -4,6 +4,20 @@ All notable changes to the GPT Prompt Generator plugin will be documented in thi
 The format is based on Keep a Changelog (https://keepachangelog.com/en/1.0.0/),
 and this project adheres to Semantic Versioning (https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.0.16] - 2025-08-05
+### Added
+- Added Advanced section uninstall data management option - admins can choose to keep or remove all plugin data when uninstalling
+- Added comprehensive uninstall.php script that honors admin data retention preferences
+- Added detailed UI explanations and warnings for uninstall data handling options
+- Added proper radio button interface for uninstall data retention setting
+
+### Fixed
+- Fixed foreign key constraint errors during plugin activation/deactivation
+- Fixed table drop order in reset_database() and uninstall logic (child tables before parent tables)
+- Fixed database error "Cannot drop table 'wp_gptpg_unique_posts' referenced by a foreign key constraint"
+
 ## [0.0.15] - 2025-08-05
 ### Added
 - Added admin-controlled debug mode settings (replaces hardcoded constant)

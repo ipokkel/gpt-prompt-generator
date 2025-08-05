@@ -153,6 +153,16 @@ class GPTPG_Admin {
 				'default' => false,
 			)
 		);
+		
+		// Uninstall Data Retention Setting
+		register_setting(
+			'gptpg_settings_group',
+			'gptpg_uninstall_data_retention',
+			array(
+				'sanitize_callback' => array( __CLASS__, 'sanitize_uninstall_data_retention' ),
+				'default' => 'keep',
+			)
+		);
 
 		// Add settings sections
 		add_settings_section(
@@ -219,6 +229,14 @@ class GPTPG_Admin {
 			'gptpg_expiry_time',
 			__( 'Data Expiry Time (minutes)', 'gpt-prompt-generator' ),
 			array( __CLASS__, 'render_expiry_time_field' ),
+			'gptpg-settings',
+			'gptpg_advanced_section'
+		);
+		
+		add_settings_field(
+			'gptpg_uninstall_data_retention',
+			__( 'Uninstall Data Handling', 'gpt-prompt-generator' ),
+			array( __CLASS__, 'render_uninstall_data_retention_field' ),
 			'gptpg-settings',
 			'gptpg_advanced_section'
 		);
@@ -668,6 +686,17 @@ class GPTPG_Admin {
 	}
 
 	/**
+	 * Sanitize uninstall data retention value.
+	 *
+	 * @param string $value The uninstall data retention value.
+	 * @return string Sanitized uninstall data retention value.
+	 */
+	public static function sanitize_uninstall_data_retention( $value ) {
+		$allowed_options = array( 'keep', 'remove' );
+		return in_array( $value, $allowed_options, true ) ? $value : 'keep';
+	}
+
+	/**
 	 * Render the debug section description.
 	 */
 	public static function render_debug_section() {
@@ -842,6 +871,41 @@ if ( ! defined( 'GPTPG_DEBUG_MODE' ) ) {
 		<p class="description">
 			<?php esc_html_e( 'When enabled, plugin logs will be written to a dedicated log file instead of the WordPress debug log. This helps keep plugin logs separate and organized.', 'gpt-prompt-generator' ); ?>
 		</p>
+		<?php
+	}
+
+	/**
+	 * Render the uninstall data retention field.
+	 */
+	public static function render_uninstall_data_retention_field() {
+		$selected = get_option( 'gptpg_uninstall_data_retention', 'keep' );
+		$options = array(
+			'keep'   => __( 'Keep all data (recommended) - Preserve plugin settings and data when uninstalling', 'gpt-prompt-generator' ),
+			'remove' => __( 'Remove all data - Delete all plugin settings, options, and database tables when uninstalling', 'gpt-prompt-generator' ),
+		);
+		?>
+		<fieldset>
+			<?php foreach ( $options as $value => $label ) : ?>
+				<label style="display: block; margin-bottom: 10px;">
+					<input type="radio" name="gptpg_uninstall_data_retention" value="<?php echo esc_attr( $value ); ?>" <?php checked( $selected, $value ); ?> style="margin-right: 8px;">
+					<?php echo esc_html( $label ); ?>
+				</label>
+			<?php endforeach; ?>
+		</fieldset>
+		
+		<div class="description" style="margin-top: 15px;">
+			<p><strong><?php esc_html_e( 'What this controls:', 'gpt-prompt-generator' ); ?></strong></p>
+			<ul style="margin-left: 20px; margin-top: 5px;">
+				<li><strong><?php esc_html_e( 'Keep all data:', 'gpt-prompt-generator' ); ?></strong> <?php esc_html_e( 'Plugin settings, stored posts, snippets, and prompts remain in the database if you reinstall later.', 'gpt-prompt-generator' ); ?></li>
+				<li><strong><?php esc_html_e( 'Remove all data:', 'gpt-prompt-generator' ); ?></strong> <?php esc_html_e( 'Complete removal including database tables, settings, and all generated content.', 'gpt-prompt-generator' ); ?></li>
+			</ul>
+			<p style="margin-top: 10px; color: #666; font-style: italic;">
+				<?php esc_html_e( 'Note: This setting only applies when you completely uninstall the plugin through the WordPress Plugins page. Deactivating the plugin does not remove any data regardless of this setting.', 'gpt-prompt-generator' ); ?>
+			</p>
+			<p style="margin-top: 8px; color: #d63638; font-weight: 500;">
+				⚠️ <?php esc_html_e( 'Warning: If you choose "Remove all data" and uninstall the plugin, all your generated prompts, snippets, and settings will be permanently deleted and cannot be recovered.', 'gpt-prompt-generator' ); ?>
+			</p>
+		</div>
 		<?php
 	}
 
