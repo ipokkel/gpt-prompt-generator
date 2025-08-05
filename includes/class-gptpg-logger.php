@@ -61,8 +61,8 @@ class GPTPG_Logger {
 		}
 
 		// Check for WordPress option (admin setting)
-		$option_mode = get_option( 'gptpg_debug_mode', '' );
-		if ( ! empty( $option_mode ) && in_array( $option_mode, [ self::MODE_PRODUCTION, self::MODE_REVIEW, self::MODE_DEBUG ] ) ) {
+		$option_mode = get_option( 'gptpg_debug_mode', self::MODE_PRODUCTION );
+		if ( in_array( $option_mode, [ self::MODE_PRODUCTION, self::MODE_REVIEW, self::MODE_DEBUG ] ) ) {
 			return $option_mode;
 		}
 

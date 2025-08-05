@@ -23,12 +23,6 @@ define( 'GPTPG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GPTPG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'GPTPG_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
-// Debug logging constants - can be overridden in wp-config.php
-if ( ! defined( 'GPTPG_DEBUG_MODE' ) ) {
-	// Possible values: 'production', 'review', 'debug'
-	// Default to 'review' for testing phase, will change to 'production' for public release
-	define( 'GPTPG_DEBUG_MODE', 'debug' );
-}
 
 // Include core classes
 require_once GPTPG_PLUGIN_DIR . 'includes/class-gptpg-logger.php';

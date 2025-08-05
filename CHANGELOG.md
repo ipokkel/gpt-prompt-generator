@@ -5,9 +5,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added admin-controlled debug mode settings (replaces hardcoded constant)
+- Added detailed override instructions for advanced users in admin UI
+- Added comprehensive explanation for Debug Logging option
+
+### Changed
+- Refactored debug mode control from constant to WordPress option
+- Updated logger to use consistent default values across admin form and logger class
+- Improved Debug Logging field description for better user understanding
+- Enhanced admin settings UI with conditional override instructions
+
 ### Fixed
 - Fixed database schema mismatch for prompts table (missing post_id column)
 - Added foreign key constraint for prompts table
+- Fixed debug mode/admin form value mismatch causing confusing status display
+
+### Removed
+- Removed hardcoded GPTPG_DEBUG_MODE constant from plugin files
 
 ## [0.0.14] - 2025-07-31
 ### Fixed

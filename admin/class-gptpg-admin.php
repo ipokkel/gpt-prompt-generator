@@ -135,11 +135,11 @@ class GPTPG_Admin {
 		
 		// New Debug Logging Settings
 		register_setting(
-			'gptpg_settings_group',
+			'gptpg_settings',
 			'gptpg_debug_mode',
 			array(
 				'sanitize_callback' => array( __CLASS__, 'sanitize_debug_mode' ),
-				'default' => 'review',
+				'default' => 'production',
 			)
 		);
 		
@@ -604,10 +604,19 @@ class GPTPG_Admin {
 		$checked = get_option( 'gptpg_debug_logging', false );
 		?>
 		<input type="checkbox" id="gptpg_debug_logging" name="gptpg_debug_logging" value="1" <?php checked( $checked ); ?>>
-		<label for="gptpg_debug_logging"><?php esc_html_e( 'Enable debug logging for content fetching attempts', 'gpt-prompt-generator' ); ?></label>
-		<p class="description">
-			<?php esc_html_e( 'When enabled, detailed logs of content fetching attempts will be written to the PHP error log for troubleshooting.', 'gpt-prompt-generator' ); ?>
-		</p>
+		<label for="gptpg_debug_logging"><?php esc_html_e( 'Enable detailed logging for GitHub/content fetching', 'gpt-prompt-generator' ); ?></label>
+		<div class="description" style="margin-top: 8px;">
+			<p><strong><?php esc_html_e( 'When to enable this:', 'gpt-prompt-generator' ); ?></strong></p>
+			<ul style="margin-left: 20px; margin-top: 5px;">
+				<li><?php esc_html_e( 'GitHub URLs aren\'t loading correctly', 'gpt-prompt-generator' ); ?></li>
+				<li><?php esc_html_e( 'Content fetching is failing or slow', 'gpt-prompt-generator' ); ?></li>
+				<li><?php esc_html_e( 'You need to troubleshoot connectivity issues', 'gpt-prompt-generator' ); ?></li>
+				<li><?php esc_html_e( 'Providing logs to support for help', 'gpt-prompt-generator' ); ?></li>
+			</ul>
+			<p style="margin-top: 10px;"><strong><?php esc_html_e( 'What it does:', 'gpt-prompt-generator' ); ?></strong> <?php esc_html_e( 'Records detailed information about each attempt to fetch content from GitHub URLs, including error messages and timing data.', 'gpt-prompt-generator' ); ?></p>
+			<p><strong><?php esc_html_e( 'Where to find logs:', 'gpt-prompt-generator' ); ?></strong> <?php esc_html_e( 'Check /wp-content/debug.log or your server error logs for entries starting with "GPTPG".', 'gpt-prompt-generator' ); ?></p>
+			<p style="color: #666; font-style: italic;"><?php esc_html_e( 'Note: Only enable when troubleshooting. Leave disabled for normal operation.', 'gpt-prompt-generator' ); ?></p>
+		</div>
 		<?php
 	}
 
@@ -629,7 +638,7 @@ class GPTPG_Admin {
 	 */
 	public static function sanitize_debug_mode( $value ) {
 		$allowed_modes = array( 'production', 'review', 'debug' );
-		return in_array( $value, $allowed_modes, true ) ? $value : 'review';
+		return in_array( $value, $allowed_modes, true ) ? $value : 'production';
 	}
 
 	/**
@@ -688,36 +697,60 @@ class GPTPG_Admin {
 	 * Render debug mode field
 	 */
 	public static function render_debug_mode_field() {
-		$current_mode = get_option( 'gptpg_debug_mode', 'review' );
-		$is_disabled = defined( 'GPTPG_DEBUG_MODE' );
+		$current_mode = get_option( 'gptpg_debug_mode', 'production' );
+		$is_constant_override = defined( 'GPTPG_DEBUG_MODE' );
 		?>
 		<fieldset>
 			<label>
-				<input type="radio" name="gptpg_debug_mode" value="production" <?php checked( $current_mode, 'production' ); ?> <?php disabled( $is_disabled ); ?> />
+				<input type="radio" name="gptpg_debug_mode" value="production" <?php checked( $current_mode, 'production' ); ?> <?php disabled( $is_constant_override ); ?> />
 				<strong><?php esc_html_e( 'Production', 'gpt-prompt-generator' ); ?></strong>
 				<p class="description"><?php esc_html_e( 'No debug logging (clean user experience)', 'gpt-prompt-generator' ); ?></p>
 			</label>
 			<br><br>
 			<label>
-				<input type="radio" name="gptpg_debug_mode" value="review" <?php checked( $current_mode, 'review' ); ?> <?php disabled( $is_disabled ); ?> />
+				<input type="radio" name="gptpg_debug_mode" value="review" <?php checked( $current_mode, 'review' ); ?> <?php disabled( $is_constant_override ); ?> />
 				<strong><?php esc_html_e( 'Review', 'gpt-prompt-generator' ); ?></strong>
-				<p class="description"><?php esc_html_e( 'Info, warning, and error logging (recommended for testing and support)', 'gpt-prompt-generator' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Info, warning, browser console logging, and error logging (recommended for testing and support)', 'gpt-prompt-generator' ); ?></p>
 			</label>
 			<br><br>
 			<label>
-				<input type="radio" name="gptpg_debug_mode" value="debug" <?php checked( $current_mode, 'debug' ); ?> <?php disabled( $is_disabled ); ?> />
+				<input type="radio" name="gptpg_debug_mode" value="debug" <?php checked( $current_mode, 'debug' ); ?> <?php disabled( $is_constant_override ); ?> />
 				<strong><?php esc_html_e( 'Debug', 'gpt-prompt-generator' ); ?></strong>
 				<p class="description"><?php esc_html_e( 'All logging including debug messages (for developers)', 'gpt-prompt-generator' ); ?></p>
 			</label>
 		</fieldset>
 
-		<?php if ( $is_disabled ) : ?>
-			<p class="description" style="color: #d63384;">
-				<?php esc_html_e( 'Debug mode is controlled by the GPTPG_DEBUG_MODE constant and cannot be changed here.', 'gpt-prompt-generator' ); ?>
-			</p>
+		<?php if ( $is_constant_override ) : ?>
+			<div class="notice notice-warning inline">
+				<p><strong><?php esc_html_e( 'Override Active:', 'gpt-prompt-generator' ); ?></strong> <?php esc_html_e( 'Debug mode is being controlled by the GPTPG_DEBUG_MODE constant and cannot be changed here.', 'gpt-prompt-generator' ); ?></p>
+				<p><?php esc_html_e( 'The constant is currently set to:', 'gpt-prompt-generator' ); ?> <code><?php echo esc_html( GPTPG_DEBUG_MODE ); ?></code></p>
+			</div>
+		<?php else : ?>
+			<div class="notice notice-info inline" style="margin-top: 15px;">
+				<h4><?php esc_html_e( '⚙️ Advanced Override Options', 'gpt-prompt-generator' ); ?></h4>
+				<p><?php esc_html_e( 'Developers and advanced users can override these settings by defining the GPTPG_DEBUG_MODE constant:', 'gpt-prompt-generator' ); ?></p>
+				
+				<div style="margin: 10px 0;">
+					<strong><?php esc_html_e( 'Option 1: wp-config.php (affects entire site)', 'gpt-prompt-generator' ); ?></strong><br>
+					<code style="background: #f0f0f0; padding: 5px; display: block; margin: 5px 0;">define( 'GPTPG_DEBUG_MODE', 'production' ); // or 'review' or 'debug'</code>
+				</div>
+				
+				<div style="margin: 10px 0;">
+					<strong><?php esc_html_e( 'Option 2: Customization Plugin (recommended for client sites)', 'gpt-prompt-generator' ); ?></strong><br>
+					<small><?php esc_html_e( 'Add this code to your theme\'s functions.php or a custom plugin:', 'gpt-prompt-generator' ); ?></small>
+					<pre style="background: #f0f0f0; padding: 10px; margin: 5px 0; font-size: 12px; overflow-x: auto;">&lt;?php
+// GPT Prompt Generator Debug Override
+if ( ! defined( 'GPTPG_DEBUG_MODE' ) ) {
+	define( 'GPTPG_DEBUG_MODE', 'production' ); // 'production', 'review', or 'debug'
+}
+</pre>
+				</div>
+				
+				<p><small><?php esc_html_e( 'When a constant is defined, it takes priority over these admin settings.', 'gpt-prompt-generator' ); ?></small></p>
+			</div>
 		<?php endif; ?>
 
-		<div id="gptpg-review-guidance" style="<?php echo ( $current_mode === 'review' && ! $is_disabled ) ? '' : 'display: none;'; ?>">
+		<div id="gptpg-review-guidance" style="<?php echo ( $current_mode === 'review' && ! $is_constant_override ) ? '' : 'display: none;'; ?>">
 			<div class="notice notice-info inline">
 				<h4><?php esc_html_e( '🧪 Review Mode - Issue Reporting Guide', 'gpt-prompt-generator' ); ?></h4>
 				<p><?php esc_html_e( 'Review mode enables detailed logging to help identify and resolve issues. When reporting problems, please collect the following information:', 'gpt-prompt-generator' ); ?></p>
