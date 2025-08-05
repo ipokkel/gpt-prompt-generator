@@ -73,16 +73,6 @@ The plugin provides several hooks for customization:
 - **Code Snippet Errors**: Verify that GitHub/Gist links are correctly formatted
 - **Browser Extension Issues**: If suggested extensions don't work well, try a different one from the list
 
-## Browser Extensions for Markdown Conversion
-
-The plugin suggests browser extensions for converting HTML content to Markdown based on your browser. These suggestions are dynamic and display different options based on browser detection. A comprehensive list of supported extensions is maintained in the plugin's `briefs/browser-extension-list.md` file.
-
-Supported browsers include:
-- Chrome/Chromium
-- Firefox
-- Safari
-- Microsoft Edge
-
 ## Debug Logging & Issue Reporting
 
 The GPT Prompt Generator includes a comprehensive debug logging system to help identify and resolve issues during testing and development.
